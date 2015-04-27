@@ -864,7 +864,7 @@ _e_text_input_manager_create(E_Comp_Data *cdata)
                        &wl_text_input_manager_interface, 1,
                        text_input_mgr, _e_text_cb_bind_text_input_manager);
 
-   if (!text_input_mgr)
+   if (!text_input_mgr->global)
      {
         free(text_input_mgr);
         return EINA_FALSE;
