@@ -356,36 +356,23 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
 static void
 _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource, struct wl_resource *seat, struct wl_resource *surface)
 {
-   E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Comp_Data *cdata = wl_resource_get_user_data(seat);
+   E_Text_Input *text_input;
+   E_Comp_Data *cdata;
    E_Input_Method *input_method;
    E_Text_Input *old;
    E_Input_Method_Context *context;
 
-   if (!text_input)
-     {
-        wl_resource_post_error(resource,
-                               WL_DISPLAY_ERROR_INVALID_OBJECT,
-                               "No Text Input For Resource");
-        return;
-     }
+   EINA_SAFETY_ON_NULL_GOTO(resource, err);
+   EINA_SAFETY_ON_NULL_GOTO(seat, err);
+   EINA_SAFETY_ON_NULL_GOTO(g_input_method, err);
+   EINA_SAFETY_ON_NULL_GOTO(g_input_method->resource, err);
 
-   if (!cdata)
-     {
-        wl_resource_post_error(seat,
-                               WL_DISPLAY_ERROR_INVALID_OBJECT,
-                               "No Comp Data For Seat");
-        return;
-     }
+   text_input = wl_resource_get_user_data(resource);
+   cdata = wl_resource_get_user_data(seat);
 
    // FIXME: should get input_method object from seat.
-   if (!(input_method = wl_resource_get_user_data(g_input_method->resource)))
-     {
-        wl_resource_post_error(seat,
-                               WL_DISPLAY_ERROR_INVALID_OBJECT,
-                               "No Input Method For Seat");
-        return;
-     }
+   input_method = wl_resource_get_user_data(g_input_method->resource);
+   EINA_SAFETY_ON_NULL_GOTO(input_method, err);
 
    old = input_method->model;
    if (old == text_input)
@@ -424,6 +411,18 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
      e_input_panel_visibility_change(EINA_TRUE);
 
    wl_text_input_send_enter(text_input->resource, surface);
+
+   return;
+
+err:
+   if (resource)
+     wl_resource_post_error(resource,
+                            WL_DISPLAY_ERROR_INVALID_OBJECT,
+                            "No Text Input For Resource");
+   if (seat)
+     wl_resource_post_error(seat,
+                            WL_DISPLAY_ERROR_INVALID_OBJECT,
+                            "No Comp Data For Seat");
 }
 static void
 _e_text_input_cb_deactivate(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, struct wl_resource *seat)
