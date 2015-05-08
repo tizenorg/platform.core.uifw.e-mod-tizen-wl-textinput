@@ -93,7 +93,7 @@ _e_text_input_method_context_cb_string_commit(struct wl_client *client EINA_UNUS
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_commit_string(context->model->resource,
                                       serial, text);
 }
@@ -111,7 +111,7 @@ _e_text_input_method_context_cb_preedit_string(struct wl_client *client EINA_UNU
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_preedit_string(context->model->resource,
                                        serial, text, commit);
 }
@@ -129,7 +129,7 @@ _e_text_input_method_context_cb_preedit_styling(struct wl_client *client EINA_UN
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_preedit_styling(context->model->resource,
                                         index, length, style);
 }
@@ -147,7 +147,7 @@ _e_text_input_method_context_cb_preedit_cursor(struct wl_client *client EINA_UNU
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_preedit_cursor(context->model->resource,
                                        cursor);
 }
@@ -165,7 +165,7 @@ _e_text_input_method_context_cb_surrounding_text_delete(struct wl_client *client
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_delete_surrounding_text(context->model->resource,
                                                 index, length);
 }
@@ -183,7 +183,7 @@ _e_text_input_method_context_cb_cursor_position(struct wl_client *client EINA_UN
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_cursor_position(context->model->resource,
                                         index, anchor);
 }
@@ -201,7 +201,7 @@ _e_text_input_method_context_cb_modifiers_map(struct wl_client *client EINA_UNUS
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_modifiers_map(context->model->resource, map);
 }
 
@@ -218,7 +218,7 @@ _e_text_input_method_context_cb_keysym(struct wl_client *client EINA_UNUSED, str
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_keysym(context->model->resource,
                                serial, time, sym, state, modifiers);
 }
@@ -273,7 +273,7 @@ _e_text_input_method_context_cb_language(struct wl_client *client EINA_UNUSED, s
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_language(context->model->resource,
                                  serial, language);
 }
@@ -291,7 +291,7 @@ _e_text_input_method_context_cb_text_direction(struct wl_client *client EINA_UNU
         return;
      }
 
-   if (context->model)
+   if ((context->model) && (context->model->resource))
      wl_text_input_send_text_direction(context->model->resource,
                                        serial, direction);
 }
