@@ -477,7 +477,7 @@ _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct w
         return;
      }
 
-   text_input->input_panel_visibile = 1;
+   text_input->input_panel_visibile = EINA_TRUE;
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
@@ -501,7 +501,7 @@ _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct w
         return;
      }
 
-   text_input->input_panel_visibile = 0;
+   text_input->input_panel_visibile = EINA_FALSE;
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
