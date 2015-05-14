@@ -196,6 +196,14 @@ _e_input_panel_surface_map(struct wl_resource *resource)
         return;
      }
 
+   if (!ec->comp_data)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Data For Client");
+        return;
+     }
+
    // NOTE: we need to set mapped, so that avoid showing evas_object and continue buffer's commit process.
    if ((!ec->comp_data->mapped) && (e_pixmap_usable_get(ec->pixmap)))
      ec->comp_data->mapped = EINA_TRUE;
@@ -227,7 +235,7 @@ _e_input_panel_surface_unmap(struct wl_resource *resource)
      {
         wl_resource_post_error(resource,
                                WL_DISPLAY_ERROR_INVALID_OBJECT,
-                               "No Client For Input Panel Surface");
+                               "No Data For Client");
         return;
      }
 
@@ -385,6 +393,14 @@ _e_input_panel_bind(struct wl_client *client, void *data, uint32_t version EINA_
    E_Input_Panel *input_panel = data;
    struct wl_resource *resource;
 
+   if (!input_panel)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Panel For Resource");
+        return;
+     }
+
    resource = wl_resource_create(client, &wl_input_panel_interface, 1, id);
 
    if (input_panel->resource == NULL)
@@ -448,6 +464,18 @@ e_input_panel_init(E_Comp_Data *cdata)
 void
 e_input_panel_shutdown(E_Comp_Data *cdata EINA_UNUSED)
 {
-   if (g_input_panel->resource) wl_resource_destroy(g_input_panel->resource);
-   if (g_input_panel->global) wl_global_destroy(g_input_panel->global);
+    if (g_input_panel)
+      {
+         if (g_input_panel->resource)
+           {
+              wl_resource_destroy(g_input_panel->resource);
+              g_input_panel->resource = NULL;
+           }
+
+         if (g_input_panel->global)
+           {
+              wl_global_destroy(g_input_panel->global);
+              g_input_panel->global = NULL;
+           }
+      }
 }
