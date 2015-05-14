@@ -349,7 +349,8 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
 
         text_input->input_methods = eina_list_remove(text_input->input_methods, input_method);
 
-        wl_text_input_send_leave(text_input->resource);
+        if (text_input->resource)
+          wl_text_input_send_leave(text_input->resource);
      }
 }
 
@@ -410,7 +411,8 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
    if (text_input->input_panel_visibile)
      e_input_panel_visibility_change(EINA_TRUE);
 
-   wl_text_input_send_enter(text_input->resource, surface);
+   if (text_input->resource)
+     wl_text_input_send_enter(text_input->resource, surface);
 
    return;
 
@@ -526,7 +528,8 @@ _e_text_input_cb_reset(struct wl_client *client EINA_UNUSED, struct wl_resource 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
         if (!input_method->context) continue;
-        wl_input_method_context_send_reset(input_method->context->resource);
+        if (input_method->context->resource)
+          wl_input_method_context_send_reset(input_method->context->resource);
      }
 }
 
@@ -548,8 +551,9 @@ _e_text_input_cb_surrounding_text_set(struct wl_client *client EINA_UNUSED, stru
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
         if (!input_method->context) continue;
-        wl_input_method_context_send_surrounding_text(input_method->context->resource,
-                                                      text, cursor, anchor);
+        if (input_method->context->resource)
+          wl_input_method_context_send_surrounding_text(input_method->context->resource,
+                                                        text, cursor, anchor);
      }
 }
 
@@ -571,8 +575,10 @@ _e_text_input_cb_content_type_set(struct wl_client *client EINA_UNUSED, struct w
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
         if (!input_method->context) continue;
-        wl_input_method_context_send_content_type(input_method->context->resource,
-                                                  hint, purpose);
+
+        if (input_method->context->resource)
+          wl_input_method_context_send_content_type(input_method->context->resource,
+                                                    hint, purpose);
      }
 }
 
@@ -612,8 +618,10 @@ _e_text_input_cb_preferred_language_set(struct wl_client *client EINA_UNUSED, st
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
         if (!input_method->context) continue;
-        wl_input_method_context_send_preferred_language(input_method->context->resource,
-                                                        language);
+
+        if (input_method->context->resource)
+          wl_input_method_context_send_preferred_language(input_method->context->resource,
+                                                          language);
      }
 }
 
@@ -635,7 +643,9 @@ _e_text_input_cb_state_commit(struct wl_client *client EINA_UNUSED, struct wl_re
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
         if (!input_method->context) continue;
-        wl_input_method_context_send_commit_state(input_method->context->resource, serial);
+
+        if (input_method->context->resource)
+          wl_input_method_context_send_commit_state(input_method->context->resource, serial);
      }
 }
 
@@ -657,8 +667,10 @@ _e_text_input_cb_action_invoke(struct wl_client *client EINA_UNUSED, struct wl_r
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
         if (!input_method->context) continue;
-        wl_input_method_context_send_invoke_action(input_method->context->resource,
-                                                   button, index);
+
+        if (input_method->context->resource)
+          wl_input_method_context_send_invoke_action(input_method->context->resource,
+                                                     button, index);
      }
 }
 
@@ -693,7 +705,12 @@ _e_text_input_cb_destroy(struct wl_resource *resource)
    EINA_LIST_FREE(text_input->input_methods, input_method)
       _e_text_input_deactivate(text_input, input_method);
 
-   eina_rectangle_free(text_input->cursor_rect);
+   if (text_input->cursor_rect)
+     {
+        eina_rectangle_free(text_input->cursor_rect);
+        text_input->cursor_rect = NULL;
+     }
+
    free(text_input);
 }
 
