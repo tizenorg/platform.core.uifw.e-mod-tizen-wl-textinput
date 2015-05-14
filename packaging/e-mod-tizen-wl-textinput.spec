@@ -4,7 +4,7 @@ Summary:    The Enlightenment WM Wayland Text Input Module for Tizen
 Version:    0.1.2
 Release:    1
 Group:      Graphics & UI Framework/Other
-License:    BSD 2-Clause and MIT
+License:    BSD-2-Clause and MIT
 Source0:    %{name}-%{version}.tar.bz2
 BuildRequires: pkgconfig(wayland-server)
 BuildRequires: pkgconfig(enlightenment)
