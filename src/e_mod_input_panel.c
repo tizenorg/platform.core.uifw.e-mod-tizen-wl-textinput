@@ -223,6 +223,14 @@ _e_input_panel_surface_unmap(struct wl_resource *resource)
         return;
      }
 
+   if (!ec->comp_data)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Client For Input Panel Surface");
+        return;
+     }
+
    if (ec->comp_data->mapped)
      {
         ec->visible = EINA_FALSE;
