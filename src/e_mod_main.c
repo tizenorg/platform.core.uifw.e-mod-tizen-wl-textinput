@@ -459,7 +459,6 @@ _e_text_input_cb_deactivate(struct wl_client *client EINA_UNUSED, struct wl_reso
      }
 
    _e_text_input_deactivate(text_input, input_method);
-   e_input_panel_visibility_change(EINA_FALSE);
 }
 
 static void
@@ -704,6 +703,8 @@ _e_text_input_cb_destroy(struct wl_resource *resource)
 
    EINA_LIST_FREE(text_input->input_methods, input_method)
       _e_text_input_deactivate(text_input, input_method);
+
+   e_input_panel_visibility_change(EINA_FALSE);
 
    if (text_input->cursor_rect)
      {
