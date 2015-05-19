@@ -345,6 +345,7 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
           }
 
         input_method->model = NULL;
+        if (input_method->context) input_method->context->model = NULL;
         input_method->context = NULL;
 
         text_input->input_methods = eina_list_remove(text_input->input_methods, input_method);

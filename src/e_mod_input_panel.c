@@ -134,6 +134,8 @@ _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
 
    if (!(ec = ips->ec)) return;
 
+   if (e_object_is_del(E_OBJECT(ec))) return;
+
    if ((ips->showing) && (e_pixmap_usable_get(ec->pixmap)))
      {
         _e_input_panel_position_set(ec, ec->client.w, ec->client.h);
@@ -238,6 +240,8 @@ _e_input_panel_surface_unmap(struct wl_resource *resource)
                                "No Data For Client");
         return;
      }
+
+   if (e_object_is_del(E_OBJECT(ec))) return;
 
    if (ec->comp_data->mapped)
      {
@@ -381,7 +385,7 @@ _e_input_panel_unbind(struct wl_resource *resource)
         if (!(ec = ips->ec)) continue;
         if (!(cdata = ec->comp_data)) continue;
 
-        wl_resource_destroy(cdata->shell.surface);
+        cdata->shell.surface = NULL;
      }
 
    E_FREE_FUNC(input_panel->surfaces, eina_list_free);
