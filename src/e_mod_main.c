@@ -359,7 +359,6 @@ static void
 _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource, struct wl_resource *seat, struct wl_resource *surface)
 {
    E_Text_Input *text_input;
-   E_Comp_Data *cdata;
    E_Input_Method *input_method;
    E_Text_Input *old;
    E_Input_Method_Context *context;
@@ -370,7 +369,6 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
    EINA_SAFETY_ON_NULL_GOTO(g_input_method->resource, err);
 
    text_input = wl_resource_get_user_data(resource);
-   cdata = wl_resource_get_user_data(seat);
 
    // FIXME: should get input_method object from seat.
    input_method = wl_resource_get_user_data(g_input_method->resource);
