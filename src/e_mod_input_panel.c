@@ -334,6 +334,7 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
    ec->no_shape_cut = EINA_TRUE;
    ec->border_size = 0;
    ec->vkbd.vkbd = 1;
+   ec->icccm.window_role = eina_stringshare_add("input_panel_surface");
    evas_object_layer_set(ec->frame, E_LAYER_CLIENT_ABOVE);
    evas_object_raise(ec->frame);
 
