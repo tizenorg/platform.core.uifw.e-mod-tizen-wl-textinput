@@ -358,10 +358,10 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
 static void
 _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource, struct wl_resource *seat, struct wl_resource *surface)
 {
-   E_Text_Input *text_input;
-   E_Input_Method *input_method;
-   E_Text_Input *old;
-   E_Input_Method_Context *context;
+   E_Text_Input *text_input = NULL;
+   E_Input_Method *input_method = NULL;
+   E_Text_Input *old = NULL;
+   E_Input_Method_Context *context = NULL;
 
    EINA_SAFETY_ON_NULL_GOTO(resource, err);
    EINA_SAFETY_ON_NULL_GOTO(seat, err);
@@ -430,7 +430,7 @@ _e_text_input_cb_deactivate(struct wl_client *client EINA_UNUSED, struct wl_reso
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
    E_Comp_Data *cdata = wl_resource_get_user_data(seat);
-   E_Input_Method *input_method;
+   E_Input_Method *input_method = NULL;
 
    if (!text_input)
      {
@@ -449,7 +449,10 @@ _e_text_input_cb_deactivate(struct wl_client *client EINA_UNUSED, struct wl_reso
      }
 
    // FIXME: should get input_method object from seat.
-   if (!(input_method = wl_resource_get_user_data(g_input_method->resource)))
+   if (g_input_method && g_input_method->resource)
+     input_method = wl_resource_get_user_data(g_input_method->resource);
+
+   if (!input_method)
      {
         wl_resource_post_error(seat,
                                WL_DISPLAY_ERROR_INVALID_OBJECT,
@@ -464,8 +467,8 @@ static void
 _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method;
-   Eina_List *l;
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -488,8 +491,8 @@ static void
 _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method;
-   Eina_List *l;
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -503,7 +506,7 @@ _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct w
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
-        if (input_method->model == text_input)
+        if (input_method && (input_method->model == text_input))
           e_input_panel_visibility_change(EINA_FALSE);
      }
 }
@@ -512,8 +515,8 @@ static void
 _e_text_input_cb_reset(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method;
-   Eina_List *l;
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -525,7 +528,7 @@ _e_text_input_cb_reset(struct wl_client *client EINA_UNUSED, struct wl_resource 
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
-        if (!input_method->context) continue;
+        if (!input_method || !input_method->context) continue;
         if (input_method->context->resource)
           wl_input_method_context_send_reset(input_method->context->resource);
      }
@@ -535,8 +538,8 @@ static void
 _e_text_input_cb_surrounding_text_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, const char *text, uint32_t cursor, uint32_t anchor)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method;
-   Eina_List *l;
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -548,7 +551,7 @@ _e_text_input_cb_surrounding_text_set(struct wl_client *client EINA_UNUSED, stru
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
-        if (!input_method->context) continue;
+        if (!input_method || !input_method->context) continue;
         if (input_method->context->resource)
           wl_input_method_context_send_surrounding_text(input_method->context->resource,
                                                         text, cursor, anchor);
@@ -559,8 +562,8 @@ static void
 _e_text_input_cb_content_type_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t hint, uint32_t purpose)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method;
-   Eina_List *l;
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -572,7 +575,7 @@ _e_text_input_cb_content_type_set(struct wl_client *client EINA_UNUSED, struct w
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
-        if (!input_method->context) continue;
+        if (!input_method || !input_method->context) continue;
 
         if (input_method->context->resource)
           wl_input_method_context_send_content_type(input_method->context->resource,
@@ -602,8 +605,8 @@ static void
 _e_text_input_cb_preferred_language_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, const char *language)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method;
-   Eina_List *l;
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -615,7 +618,7 @@ _e_text_input_cb_preferred_language_set(struct wl_client *client EINA_UNUSED, st
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
-        if (!input_method->context) continue;
+        if (!input_method || !input_method->context) continue;
 
         if (input_method->context->resource)
           wl_input_method_context_send_preferred_language(input_method->context->resource,
@@ -627,8 +630,8 @@ static void
 _e_text_input_cb_state_commit(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t serial)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method;
-   Eina_List *l;
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -640,7 +643,7 @@ _e_text_input_cb_state_commit(struct wl_client *client EINA_UNUSED, struct wl_re
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
-        if (!input_method->context) continue;
+        if (!input_method || !input_method->context) continue;
 
         if (input_method->context->resource)
           wl_input_method_context_send_commit_state(input_method->context->resource, serial);
@@ -651,8 +654,8 @@ static void
 _e_text_input_cb_action_invoke(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t button, uint32_t index)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method;
-   Eina_List *l;
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -664,7 +667,7 @@ _e_text_input_cb_action_invoke(struct wl_client *client EINA_UNUSED, struct wl_r
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
-        if (!input_method->context) continue;
+        if (!input_method || !input_method->context) continue;
 
         if (input_method->context->resource)
           wl_input_method_context_send_invoke_action(input_method->context->resource,
@@ -690,7 +693,7 @@ static void
 _e_text_input_cb_destroy(struct wl_resource *resource)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method;
+   E_Input_Method *input_method = NULL;
 
    if (!text_input)
      {
@@ -718,7 +721,7 @@ static void
 _e_text_input_manager_cb_text_input_create(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 {
    E_Text_Input_Mgr *text_input_mgr = wl_resource_get_user_data(resource);
-   E_Text_Input *text_input;
+   E_Text_Input *text_input = NULL;
 
    if (!text_input_mgr)
      {
@@ -796,7 +799,7 @@ static void
 _e_text_cb_bind_input_method(struct wl_client *client, void *data, uint32_t version EINA_UNUSED, uint32_t id)
 {
    E_Input_Method *input_method = data;
-   struct wl_resource *resource;
+   struct wl_resource *resource = NULL;
 
    if (!input_method) return;
 
@@ -856,6 +859,7 @@ static void
 _e_text_input_manager_destroy(void *data)
 {
    E_Text_Input_Mgr *text_input_mgr = data;
+   if (!text_input_mgr) return;
 
    wl_global_destroy(text_input_mgr->global);
    free(text_input_mgr);
@@ -908,7 +912,7 @@ EAPI E_Module_Api e_modapi = { E_MODULE_API_VERSION, "Wl_Text_Input" };
 EAPI void *
 e_modapi_init(E_Module *m)
 {
-   E_Comp_Data *cdata;
+   E_Comp_Data *cdata = NULL;
 
    if (!e_comp) return NULL;
 

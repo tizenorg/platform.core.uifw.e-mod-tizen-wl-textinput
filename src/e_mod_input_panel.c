@@ -31,7 +31,7 @@ static void
 _e_input_panel_surface_cb_toplevel_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, struct wl_resource *output_resource EINA_UNUSED, uint32_t position EINA_UNUSED)
 {
    E_Input_Panel_Surface *ips = wl_resource_get_user_data(resource);
-   E_Input_Panel *input_panel = ips->input_panel;
+   E_Input_Panel *input_panel = NULL;
 
    if (!ips)
      {
@@ -40,6 +40,8 @@ _e_input_panel_surface_cb_toplevel_set(struct wl_client *client EINA_UNUSED, str
                                "No Input Panel Surface For Surface");
         return;
      }
+
+   if (!(input_panel = ips->input_panel)) return;
 
    input_panel->surfaces = eina_list_append(input_panel->surfaces, ips);
    ips->panel = EINA_FALSE;
@@ -49,7 +51,7 @@ static void
 _e_input_panel_surface_cb_overlay_panel_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
    E_Input_Panel_Surface *ips = wl_resource_get_user_data(resource);
-   E_Input_Panel *input_panel = ips->input_panel;
+   E_Input_Panel *input_panel = NULL;
 
    if (!ips)
      {
@@ -58,6 +60,8 @@ _e_input_panel_surface_cb_overlay_panel_set(struct wl_client *client EINA_UNUSED
                                "No Input Panel Surface For Surface");
         return;
      }
+
+   if (!(input_panel = ips->input_panel)) return;
 
    input_panel->surfaces = eina_list_append(input_panel->surfaces, ips);
    ips->panel = EINA_TRUE;
@@ -72,8 +76,8 @@ static void
 _e_input_panel_surface_resource_destroy(struct wl_resource *resource)
 {
    E_Input_Panel_Surface *ips = wl_resource_get_user_data(resource);
-   E_Input_Panel *input_panel;
-   E_Client *ec;
+   E_Input_Panel *input_panel = NULL;
+   E_Client *ec = NULL;
 
    if (!ips)
      {
@@ -116,6 +120,8 @@ _e_input_panel_position_set(E_Client *ec, int w, int h)
 {
    int nx, ny;
    int zx, zy, zw, zh;
+
+   if (!ec) return;
 
    e_zone_useful_geometry_get(ec->zone, &zx, &zy, &zw, &zh);
 
@@ -214,8 +220,8 @@ _e_input_panel_surface_map(struct wl_resource *resource)
 static void
 _e_input_panel_surface_unmap(struct wl_resource *resource)
 {
-   E_Input_Panel_Surface *ips;
-   E_Client *ec;
+   E_Input_Panel_Surface *ips = NULL;
+   E_Client *ec = NULL;
 
    if (!(ips = wl_resource_get_user_data(resource)))
      {
@@ -256,9 +262,9 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
 {
    E_Input_Panel *input_panel = wl_resource_get_user_data(resource);
    E_Pixmap *ep = wl_resource_get_user_data(surface_resource);
-   E_Input_Panel_Surface *ips;
-   E_Comp_Client_Data *cdata;
-   E_Client *ec;
+   E_Input_Panel_Surface *ips = NULL;
+   E_Comp_Client_Data *cdata = NULL;
+   E_Client *ec = NULL;
 
    if (!input_panel)
      {
@@ -401,6 +407,7 @@ _e_input_panel_bind(struct wl_client *client, void *data, uint32_t version EINA_
    if (!input_panel) return;
 
    resource = wl_resource_create(client, &wl_input_panel_interface, 1, id);
+   if (!resource) return;
 
    if (input_panel->resource == NULL)
      {
@@ -439,7 +446,7 @@ e_input_panel_init(E_Comp_Data *cdata)
 {
    if (!cdata) return EINA_FALSE;
 
-   if (!(g_input_panel= E_NEW(E_Input_Panel, 1)))
+   if (!(g_input_panel = E_NEW(E_Input_Panel, 1)))
      {
         // ERR("Failed to allocate space for E_Input_Panel");
         return EINA_FALSE;
