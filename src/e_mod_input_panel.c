@@ -435,7 +435,6 @@ e_input_panel_visibility_change(Eina_Bool visible)
    EINA_LIST_FOREACH(g_input_panel->surfaces, l, ips)
      {
         if (!ips->ec) continue;
-        if (ips->ec->client.w == 0) continue;
         ips->showing = visible;
         _e_input_panel_surface_visible_update(ips);
      }
