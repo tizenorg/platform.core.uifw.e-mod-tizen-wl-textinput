@@ -198,6 +198,10 @@
       </description>
       <arg name="map" type="array"/>
     </event>
+    <enum name="input_panel_state">
+      <entry name="hide" value="0" summary="Notification prior to the dismissal of the input panel"/>
+      <entry name="show" value="1" summary="Notification after the display of the input panel"/>
+    </enum>
     <event name="input_panel_state">
       <description summary="state of the input panel">
         Notify when the visibility state of the input panel changed.
