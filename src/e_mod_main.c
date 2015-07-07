@@ -467,8 +467,6 @@ static void
 _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method = NULL;
-   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -480,25 +478,17 @@ _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct w
 
    text_input->input_panel_visibile = EINA_TRUE;
 
-   EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
-     {
-        if (input_method->model == text_input)
-          {
-             e_input_panel_visibility_change(EINA_TRUE);
+   e_input_panel_visibility_change(EINA_TRUE);
 
-             if (text_input->resource)
-               wl_text_input_send_input_panel_state(text_input->resource,
-                                                    WL_TEXT_INPUT_INPUT_PANEL_STATE_SHOW);
-          }
-     }
+   if (text_input->resource)
+     wl_text_input_send_input_panel_state(text_input->resource,
+                                          WL_TEXT_INPUT_INPUT_PANEL_STATE_SHOW);
 }
 
 static void
 _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method = NULL;
-   Eina_List *l = NULL;
 
    if (!text_input)
      {
@@ -510,17 +500,11 @@ _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct w
 
    text_input->input_panel_visibile = EINA_FALSE;
 
-   EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
-     {
-        if (input_method && (input_method->model == text_input))
-          {
-             if (text_input->resource)
-               wl_text_input_send_input_panel_state(text_input->resource,
-                                                    WL_TEXT_INPUT_INPUT_PANEL_STATE_HIDE);
+   if (text_input->resource)
+     wl_text_input_send_input_panel_state(text_input->resource,
+                                          WL_TEXT_INPUT_INPUT_PANEL_STATE_HIDE);
 
-             e_input_panel_visibility_change(EINA_FALSE);
-          }
-     }
+   e_input_panel_visibility_change(EINA_FALSE);
 }
 
 static void
