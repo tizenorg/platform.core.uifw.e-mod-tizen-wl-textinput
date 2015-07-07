@@ -1,7 +1,7 @@
 %bcond_with wayland
 Name:       e-mod-tizen-wl-textinput
 Summary:    The Enlightenment WM Wayland Text Input Module for Tizen
-Version:    0.1.7
+Version:    0.1.8
 Release:    1
 Group:      Graphics & UI Framework/Other
 License:    BSD-2-Clause and MIT
@@ -19,6 +19,8 @@ The Enlightenment WM Wayland Text Input Module for Tizen
 %setup -q -n %{name}-%{version}
 
 %build
+CFLAGS=$(echo $CFLAGS | sed 's/-O2/-O0/')
+CXXFLAGS=$(echo $CXXFLAGS | sed 's/-O2/-O0/')
 %autogen
 %configure
 make %{?_smp_mflags}
