@@ -137,6 +137,8 @@
       <entry name="time" value="10" summary="input a time"/>
       <entry name="datetime" value="11" summary="input a date and time"/>
       <entry name="terminal" value="12" summary="input for a terminal"/>
+      <entry name="ip" value="13" summary="input for a IP (number and a-f for Ipv6)"/>
+      <entry name="emoticon" value="14" summary="input for an emoticon"/>
     </enum>
     <request name="set_content_type">
       <description summary="set content purpose and hint">
