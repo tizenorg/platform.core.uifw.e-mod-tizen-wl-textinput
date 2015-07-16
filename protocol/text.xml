@@ -178,6 +178,25 @@
       <arg name="button" type="uint"/>
       <arg name="index" type="uint"/>
     </request>
+    <enum name="return_key_type">
+      <description summary="return key type">
+        The return key type allows to specify the return key on the input panel.
+      </description>
+      <entry name="default" value="0" summary="default"/>
+      <entry name="done" value="1" summary="done"/>
+      <entry name="go" value="2" summary="go"/>
+      <entry name="join" value="3" summary="join"/>
+      <entry name="login" value="4" summary="login"/>
+      <entry name="next" value="5" summary="next"/>
+      <entry name="search" value="6" summary="search"/>
+      <entry name="send" value="7" summary="send"/>
+    </enum>
+    <request name="set_return_key_type">
+      <description summary="set return key type">
+        Sets the return key type.
+      </description>
+      <arg name="return_key_type" type="uint"/>
+    </request>
     <event name="enter">
       <description summary="enter event">
         Notify the text-input object when it received focus. Typically in

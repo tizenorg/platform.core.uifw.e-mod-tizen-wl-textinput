@@ -213,6 +213,9 @@
     <event name="preferred_language">
       <arg name="language" type="string"/>
     </event>
+    <event name="return_key_type">
+      <arg name="return_key_type" type="uint"/>
+    </event>
   </interface>
 
   <interface name="wl_input_method" version="1">
