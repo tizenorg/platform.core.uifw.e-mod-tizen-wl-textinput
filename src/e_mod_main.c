@@ -3,6 +3,7 @@
 #include "e_mod_main.h"
 #include "text-protocol.h"
 #include "input-method-protocol.h"
+#include "Eeze.h"
 
 typedef struct _E_Text_Input E_Text_Input;
 typedef struct _E_Text_Input_Mgr E_Text_Input_Mgr;
@@ -56,6 +57,8 @@ struct _E_Mod_Text_Input_Shutdown_Cb
 
 E_Input_Method *g_input_method;
 Eina_List *shutdown_list;
+Eina_Bool g_keyboard_connecting = EINA_FALSE;
+Eeze_Udev_Watch * eeze_udev_watch_hander = NULL;
 
 static void
 _e_mod_text_input_shutdown_cb_add(void (*func)(void *data), void *data)
@@ -475,7 +478,8 @@ _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct w
                                "No Text Input For Resource");
         return;
      }
-
+   if (g_keyboard_connecting == EINA_TRUE)
+     return;
    text_input->input_panel_visibile = EINA_TRUE;
 
    e_input_panel_visibility_change(EINA_TRUE);
@@ -521,6 +525,9 @@ _e_text_input_cb_reset(struct wl_client *client EINA_UNUSED, struct wl_resource 
                                "No Text Input For Resource");
         return;
      }
+
+   if (g_keyboard_connecting == EINA_FALSE)
+     e_input_panel_visibility_change(EINA_TRUE);
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
      {
@@ -931,6 +938,18 @@ _e_mod_text_input_shutdown(void)
 
 EAPI E_Module_Api e_modapi = { E_MODULE_API_VERSION, "Wl_Text_Input" };
 
+static void
+_e_mod_eeze_udev_watch_cb(const char *text, Eeze_Udev_Event event, void *data, Eeze_Udev_Watch *watch)
+{
+    if (event == EEZE_UDEV_EVENT_ADD)
+      {
+          g_keyboard_connecting = EINA_TRUE;
+          e_input_panel_visibility_change(EINA_FALSE);
+      }
+    else if (event == EEZE_UDEV_EVENT_REMOVE)
+      g_keyboard_connecting = EINA_FALSE;
+}
+
 EAPI void *
 e_modapi_init(E_Module *m)
 {
@@ -950,6 +969,13 @@ e_modapi_init(E_Module *m)
    if (!_e_text_input_manager_create(cdata))
      goto err;
 
+   eeze_udev_watch_hander = eeze_udev_watch_add(EEZE_UDEV_TYPE_KEYBOARD,
+                                                EEZE_UDEV_EVENT_ADD | EEZE_UDEV_EVENT_REMOVE,
+                                                _e_mod_eeze_udev_watch_cb,
+                                                NULL);
+   if (!eeze_udev_watch_hander)
+     goto err;
+
    return m;
 err:
    _e_mod_text_input_shutdown();
@@ -959,6 +985,11 @@ err:
 EAPI int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
+   if (eeze_udev_watch_hander)
+     {
+         eeze_udev_watch_del(eeze_udev_watch_hander);
+         eeze_udev_watch_hander = NULL;
+     }
    _e_mod_text_input_shutdown();
 
    e_input_panel_shutdown(NULL);

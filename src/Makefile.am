@@ -11,8 +11,8 @@ module_la_SOURCES      = e_mod_main.c \
                          input-method-protocol.c \
                          text-protocol.c
 module_la_LIBADD       =
-module_la_CFLAGS       = @WAYLAND_CFLAGS@ @ENLIGHTENMENT_CFLAGS@ -DHAVE_WAYLAND_ONLY
-module_la_LDFLAGS      = -module -avoid-version @WAYLAND_LIBS@ @ENLIGHTENMENT_LIBS@
+module_la_CFLAGS       = @WAYLAND_CFLAGS@ @ENLIGHTENMENT_CFLAGS@ @EEZE_CFLAGS@ -DHAVE_WAYLAND_ONLY
+module_la_LDFLAGS      = -module -avoid-version @WAYLAND_LIBS@ @ENLIGHTENMENT_LIBS@ @EEZE_LIBS@
 module_la_DEPENDENCIES = $(top_builddir)/config.h
 
 BUILT_SOURCES = input-method-protocol.c \
