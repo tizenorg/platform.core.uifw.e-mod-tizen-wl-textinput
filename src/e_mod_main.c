@@ -954,7 +954,7 @@ EAPI void *
 e_modapi_init(E_Module *m)
 {
    E_Comp_Data *cdata = NULL;
-
+   Eina_List *keyboard_list = NULL;
    if (!e_comp) return NULL;
 
    if (!(cdata = e_comp->wl_comp_data)) return NULL;
@@ -975,6 +975,13 @@ e_modapi_init(E_Module *m)
                                                 NULL);
    if (!eeze_udev_watch_hander)
      goto err;
+
+   keyboard_list = eeze_udev_find_by_type(EEZE_UDEV_TYPE_KEYBOARD, NULL);
+   if (keyboard_list != NULL)
+    {
+        g_keyboard_connecting = EINA_TRUE;
+        eina_list_free(keyboard_list);
+    }
 
    return m;
 err:
