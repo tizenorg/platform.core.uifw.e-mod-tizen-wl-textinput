@@ -1,8 +1,8 @@
 #define E_COMP_WL
 #include "e.h"
 #include "e_mod_main.h"
-#include "text-protocol.h"
-#include "input-method-protocol.h"
+#include <text-server-protocol.h>
+#include <input-method-server-protocol.h>
 #include "Eeze.h"
 
 typedef struct _E_Text_Input E_Text_Input;

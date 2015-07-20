@@ -7,6 +7,8 @@ Group:      Graphics & UI Framework/Other
 License:    BSD-2-Clause and MIT
 Source0:    %{name}-%{version}.tar.bz2
 BuildRequires: pkgconfig(wayland-server)
+BuildRequires: pkgconfig(text-server)
+BuildRequires: pkgconfig(input-method-server)
 BuildRequires: pkgconfig(enlightenment)
 BuildRequires: pkgconfig(eeze)
 %if !%{with wayland}

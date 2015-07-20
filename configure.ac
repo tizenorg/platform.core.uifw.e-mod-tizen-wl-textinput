@@ -28,13 +28,7 @@ AC_PROG_LIBTOOL
 #AM_GNU_GETTEXT([external])
 #AM_GNU_GETTEXT_VERSION(0.14)
 
-AC_PATH_PROG([wayland_scanner], [wayland-scanner])
-if test x$wayland_scanner = x; then
-   AC_MSG_ERROR([wayland-scanner is needed to compile])
-fi
-
-PKG_CHECK_MODULES(WAYLAND_SCANNER, wayland-scanner)
-PKG_CHECK_MODULES(WAYLAND, [wayland-server])
+PKG_CHECK_MODULES(WAYLAND, [wayland-server, text-server, input-method-server])
 PKG_CHECK_MODULES(ENLIGHTENMENT, [enlightenment])
 PKG_CHECK_MODULES(EEZE, [eeze])
 

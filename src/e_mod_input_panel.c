@@ -1,7 +1,7 @@
 #define E_COMP_WL
 #include "e.h"
 #include "e_mod_main.h"
-#include "input-method-protocol.h"
+#include <input-method-server-protocol.h>
 
 typedef struct _E_Input_Panel E_Input_Panel;
 typedef struct _E_Input_Panel_Surface E_Input_Panel_Surface;
