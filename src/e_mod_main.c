@@ -55,10 +55,10 @@ struct _E_Mod_Text_Input_Shutdown_Cb
    void *data;
 };
 
-E_Input_Method *g_input_method;
-Eina_List *shutdown_list;
-Eina_Bool g_keyboard_connecting = EINA_FALSE;
-Eeze_Udev_Watch * eeze_udev_watch_hander = NULL;
+static E_Input_Method *g_input_method = NULL;
+static Eina_List *shutdown_list = NULL;
+static Eina_Bool g_keyboard_connecting = EINA_FALSE;
+static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
 
 static void
 _e_mod_text_input_shutdown_cb_add(void (*func)(void *data), void *data)
@@ -399,6 +399,7 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
         context->resource =
            wl_resource_create(wl_resource_get_client(input_method->resource),
                               &wl_input_method_context_interface, 1, 0);
+
         wl_resource_set_implementation(context->resource,
                                        &_e_text_input_method_context_implementation,
                                        context, _e_text_input_method_context_cb_resource_destroy);
@@ -478,8 +479,10 @@ _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct w
                                "No Text Input For Resource");
         return;
      }
+
    if (g_keyboard_connecting == EINA_TRUE)
      return;
+
    text_input->input_panel_visibile = EINA_TRUE;
 
    e_input_panel_visibility_change(EINA_TRUE);
@@ -852,7 +855,12 @@ _e_text_input_method_destroy(void *data)
 {
    E_Input_Method *input_method = data;
 
-   wl_global_destroy(input_method->global);
+   if (!input_method)
+     return;
+
+   if (input_method->global)
+     wl_global_destroy(input_method->global);
+
    free(input_method);
 }
 
