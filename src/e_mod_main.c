@@ -529,7 +529,7 @@ _e_text_input_cb_reset(struct wl_client *client EINA_UNUSED, struct wl_resource 
         return;
      }
 
-   if (g_keyboard_connecting == EINA_FALSE)
+   if (g_keyboard_connecting == EINA_FALSE && text_input->input_panel_visibile)
      e_input_panel_visibility_change(EINA_TRUE);
 
    EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
