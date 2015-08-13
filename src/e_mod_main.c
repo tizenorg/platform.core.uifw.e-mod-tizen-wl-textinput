@@ -5,6 +5,16 @@
 #include <input-method-server-protocol.h>
 #include "Eeze.h"
 
+# define E_LIST_FILTER_HANDLER_APPEND(list, callback, data) \
+  do \
+    { \
+       Ecore_Event_Filter *_eh; \
+       _eh = ecore_event_filter_add(NULL, (Ecore_Filter_Cb)callback, NULL, data); \
+       assert(_eh); \
+       list = eina_list_append(list, _eh); \
+    } \
+  while (0)
+
 typedef struct _E_Text_Input E_Text_Input;
 typedef struct _E_Text_Input_Mgr E_Text_Input_Mgr;
 typedef struct _E_Input_Method E_Input_Method;
@@ -42,10 +52,16 @@ struct _E_Input_Method
 struct _E_Input_Method_Context
 {
    struct wl_resource *resource;
-   struct wl_resource *keyboard;
 
    E_Text_Input *model;
    E_Input_Method *input_method;
+
+   struct
+   {
+      struct wl_resource *resource;
+      Eina_List *handlers;
+      Eina_Bool grabbed;
+   } kbd;
 };
 
 struct _E_Mod_Text_Input_Shutdown_Cb
@@ -59,6 +75,121 @@ static Eina_List *shutdown_list = NULL;
 static Eina_Bool g_keyboard_connecting = EINA_FALSE;
 static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
 static Ecore_Event_Handler *ecore_key_down_handler = NULL;
+
+static void
+_e_text_input_method_context_keyboard_grab_keyboard_state_update(E_Comp_Data *cdata, uint32_t keycode, Eina_Bool pressed)
+{
+   enum xkb_key_direction dir;
+
+   if (!cdata->xkb.state) return;
+
+   if (pressed) dir = XKB_KEY_DOWN;
+   else dir = XKB_KEY_UP;
+
+   cdata->kbd.mod_changed =
+     xkb_state_update_key(cdata->xkb.state, keycode + 8, dir);
+}
+
+static void
+_e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(E_Comp_Data *cdata, struct wl_resource *keyboard)
+{
+   uint32_t serial;
+
+   if (!cdata->xkb.state) return;
+
+   cdata->kbd.mod_depressed =
+     xkb_state_serialize_mods(cdata->xkb.state, XKB_STATE_DEPRESSED);
+   cdata->kbd.mod_latched =
+     xkb_state_serialize_mods(cdata->xkb.state, XKB_STATE_MODS_LATCHED);
+   cdata->kbd.mod_locked =
+     xkb_state_serialize_mods(cdata->xkb.state, XKB_STATE_MODS_LOCKED);
+   cdata->kbd.mod_group =
+     xkb_state_serialize_layout(cdata->xkb.state, XKB_STATE_LAYOUT_EFFECTIVE);
+
+   serial = wl_display_next_serial(cdata->wl.disp);
+   wl_keyboard_send_modifiers(keyboard, serial,
+                              cdata->kbd.mod_depressed,
+                              cdata->kbd.mod_latched,
+                              cdata->kbd.mod_locked,
+                              cdata->kbd.mod_group);
+}
+
+static void
+_e_text_input_method_context_keyboard_grab_key(void *data, void *event, Eina_Bool pressed)
+{
+   E_Input_Method_Context *context = NULL;
+   E_Comp_Data *cdata = NULL;
+   Ecore_Event_Key *ev;
+   uint32_t serial, keycode;
+
+   if (!(context = data)) return;
+   if (!(context->model)) return;
+   if (!(cdata = context->model->cdata)) return;
+   if (!(ev = event)) return;
+
+   keycode = ev->keycode - 8;
+
+   /* update modifier state */
+   _e_text_input_method_context_keyboard_grab_keyboard_state_update(cdata, keycode, pressed);
+
+   serial = wl_display_next_serial(cdata->wl.disp);
+   if (pressed == EINA_TRUE)
+     {
+        wl_keyboard_send_key(context->kbd.resource, serial, ev->timestamp,
+                             keycode, WL_KEYBOARD_KEY_STATE_PRESSED);
+     }
+   else
+     {
+        wl_keyboard_send_key(context->kbd.resource, serial, ev->timestamp,
+                             keycode, WL_KEYBOARD_KEY_STATE_RELEASED);
+     }
+   if (cdata->kbd.mod_changed)
+     {
+        _e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(cdata, context->kbd.resource);
+        cdata->kbd.mod_changed = 0;
+     }
+   return;
+}
+
+static Eina_Bool
+_e_text_input_method_context_keyboard_grab_event_filter(void *data __UNUSED__, void *loop_data,int type, void *event __UNUSED__)
+{
+
+   if (type == ECORE_EVENT_KEY_DOWN)
+     {
+        _e_text_input_method_context_keyboard_grab_key(data, event, EINA_TRUE);
+        return EINA_FALSE;
+     }
+   else if (type == ECORE_EVENT_KEY_UP)
+     {
+        _e_text_input_method_context_keyboard_grab_key(data, event, EINA_FALSE);
+        return EINA_FALSE;
+     }
+
+   return EINA_TRUE;
+}
+
+static void
+_e_text_input_method_context_grab_set(E_Input_Method_Context *context, Eina_Bool set)
+{
+   if (set == context->kbd.grabbed)
+     return;
+
+   context->kbd.grabbed = set;
+
+   if (set)
+     {
+        E_LIST_FILTER_HANDLER_APPEND(context->kbd.handlers,
+                                     _e_text_input_method_context_keyboard_grab_event_filter,
+                                     context);
+        e_comp_grab_input(e_comp, 0, 1);
+     }
+   else
+     {
+        E_FREE_LIST(context->kbd.handlers, ecore_event_filter_del);
+        e_comp_ungrab_input(e_comp, 0, 1);
+     }
+}
 
 static void
 _e_mod_text_input_shutdown_cb_add(void (*func)(void *data), void *data)
@@ -227,13 +358,68 @@ _e_text_input_method_context_cb_keysym(struct wl_client *client EINA_UNUSED, str
 }
 
 static void
+_e_text_input_method_context_keyboard_grab_cb_resource_destroy(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
+{
+   wl_resource_destroy(resource);
+}
+
+static const struct wl_keyboard_interface _e_keyboard_grab_interface =
+{
+   _e_text_input_method_context_keyboard_grab_cb_resource_destroy
+};
+
+static void
+_e_text_input_method_context_keyboard_grab_cb_keyboard_unbind(struct wl_resource *resource)
+{
+   E_Input_Method_Context *context = wl_resource_get_user_data(resource);
+
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+
+   _e_text_input_method_context_grab_set(context, EINA_FALSE);
+
+   context->kbd.resource = NULL;
+}
+
+static void
 _e_text_input_method_context_cb_keyboard_grab(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 {
    DBG("Input Method Context - grab keyboard %d", wl_resource_get_id(resource));
+   E_Input_Method_Context *context  = wl_resource_get_user_data(resource);
+   struct wl_resource *keyboard = NULL;
+   E_Comp_Data *cdata = NULL;
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+   keyboard = wl_resource_create(client, &wl_keyboard_interface, 1, id);
+   if (!keyboard)
+     {
+        wl_client_post_no_memory(client);
+        return;
+     }
 
-   (void)client;
-   (void)resource;
-   (void)id;
+   wl_resource_set_implementation(keyboard, &_e_keyboard_grab_interface, context, _e_text_input_method_context_keyboard_grab_cb_keyboard_unbind);
+
+   if (context->model && context->model->cdata)
+     {
+        cdata = context->model->cdata;
+        /* send current keymap */
+        wl_keyboard_send_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
+                           cdata->xkb.fd, cdata->xkb.size);
+     }
+
+   context->kbd.resource = keyboard;
+
+   _e_text_input_method_context_grab_set(context, EINA_TRUE);
 }
 
 static void
@@ -329,8 +515,8 @@ _e_text_input_method_context_cb_resource_destroy(struct wl_resource *resource)
         return;
      }
 
-   if (context->keyboard)
-     wl_resource_destroy(context->keyboard);
+   if (context->kbd.resource)
+     wl_resource_destroy(context->kbd.resource);
 
    if ((context->input_method) &&
        (context->input_method->context == context))
@@ -346,6 +532,8 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
      {
         if ((input_method->context) && (input_method->resource))
           {
+             _e_text_input_method_context_grab_set(input_method->context,
+                                                   EINA_FALSE);
              // TODO: finish the grab of keyboard.
              wl_input_method_send_deactivate(input_method->resource,
                                              input_method->context->resource);
