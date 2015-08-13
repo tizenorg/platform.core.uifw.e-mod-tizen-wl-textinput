@@ -59,6 +59,7 @@ static E_Input_Method *g_input_method = NULL;
 static Eina_List *shutdown_list = NULL;
 static Eina_Bool g_keyboard_connecting = EINA_FALSE;
 static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
+static Ecore_Event_Filter *_ecore_fb_filter_handler = NULL;
 
 static void
 _e_mod_text_input_shutdown_cb_add(void (*func)(void *data), void *data)
@@ -227,13 +228,121 @@ _e_text_input_method_context_cb_keysym(struct wl_client *client EINA_UNUSED, str
 }
 
 static void
+_e_text_input_method_context_keyboard_grab_cb_resource_destroy(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
+{
+   wl_resource_destroy(resource);
+}
+
+static const struct wl_keyboard_interface _e_keyboard_grab_interface =
+{
+   _e_text_input_method_context_keyboard_grab_cb_resource_destroy
+};
+
+static void
+_e_text_input_method_context_keyboard_grab_cb_keyboard_unbind(struct wl_resource *resource)
+{
+   E_Input_Method_Context *context = wl_resource_get_user_data(resource);
+
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+   context->keyboard = NULL;
+
+   if (_ecore_fb_filter_handler)
+    {
+       ecore_event_handler_del(_ecore_fb_filter_handler);
+       _ecore_fb_filter_handler = NULL;
+    }
+}
+
+static void
+_e_text_input_method_context_keyboard_grab_key_down(void *data, void *event)
+{
+   E_Input_Method_Context *context = NULL;
+   E_Comp_Data *cdata = NULL;
+   Ecore_Event_Key *ev;
+   uint32_t serial;
+
+   if (!(context = data)) return;
+   if (!(cdata = context->model->cdata)) return;
+   if (!(ev = event)) return;
+
+   serial = wl_display_next_serial(cdata->wl.disp);
+   wl_keyboard_send_key(context->keyboard, serial, ev->timestamp,
+                                       ev->keycode - 8, WL_KEYBOARD_KEY_STATE_PRESSED);
+   return;
+}
+
+static void
+_e_text_input_method_context_keyboard_grab_key_up(void *data, void *event)
+{
+   E_Input_Method_Context *context = NULL;
+   E_Comp_Data *cdata = NULL;
+   Ecore_Event_Key *ev;
+   uint32_t serial;
+
+   if (!(context = data)) return;
+   if (!(cdata = context->model->cdata)) return;
+   if (!(ev = event)) return;
+
+   serial = wl_display_next_serial(cdata->wl.disp);
+   wl_keyboard_send_key(context->keyboard, serial, ev->timestamp,
+                                        ev->keycode - 8, WL_KEYBOARD_KEY_STATE_RELEASED);
+   return;
+}
+
+static Eina_Bool
+_e_text_input_method_context_keyboard_grab_event_filter(void *data __UNUSED__, void *loop_data,int type, void *event __UNUSED__)
+{
+
+   if (type == ECORE_EVENT_KEY_DOWN)
+     {
+        _e_text_input_method_context_keyboard_grab_key_down(data, event);
+        return EINA_FALSE;
+     }
+   else if (type == ECORE_EVENT_KEY_UP)
+     {
+        _e_text_input_method_context_keyboard_grab_key_up(data, event);
+        return EINA_FALSE;
+     }
+
+   return EINA_TRUE;
+}
+
+static void
 _e_text_input_method_context_cb_keyboard_grab(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 {
    DBG("Input Method Context - grab keyboard %d", wl_resource_get_id(resource));
+   E_Input_Method_Context *context  = wl_resource_get_user_data(resource);
+   struct wl_resource *keyboard = NULL;
+   E_Comp_Data *cdata = NULL;
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+   keyboard = wl_resource_create(client, &wl_keyboard_interface, 1, id);
+   if (!keyboard)
+     {
+        wl_client_post_no_memory(client);
+        return;
+     }
 
-   (void)client;
-   (void)resource;
-   (void)id;
+   wl_resource_set_implementation(keyboard, &_e_keyboard_grab_interface, context, _e_text_input_method_context_keyboard_grab_cb_keyboard_unbind);
+
+   context->keyboard = keyboard;
+   cdata = context->model->cdata;
+   /* send current keymap */
+   wl_keyboard_send_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
+                           cdata->xkb.fd, cdata->xkb.size);
+
+   _ecore_fb_filter_handler = ecore_event_filter_add(NULL, _e_text_input_method_context_keyboard_grab_event_filter, NULL, context);
 }
 
 static void
