@@ -59,6 +59,8 @@ static E_Input_Method *g_input_method = NULL;
 static Eina_List *shutdown_list = NULL;
 static Eina_Bool g_keyboard_connecting = EINA_FALSE;
 static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
+static Ecore_Event_Handler *action_handler_key_down = NULL;
+static Ecore_Event_Handler *action_handler_key_up = NULL;
 
 static void
 _e_mod_text_input_shutdown_cb_add(void (*func)(void *data), void *data)
@@ -227,13 +229,98 @@ _e_text_input_method_context_cb_keysym(struct wl_client *client EINA_UNUSED, str
 }
 
 static void
+_e_text_input_method_context_keyboard_grab_cb_resource_destroy(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
+{
+   wl_resource_destroy(resource);
+}
+
+static const struct wl_keyboard_interface _e_keyboard_grab_interface =
+{
+   _e_text_input_method_context_keyboard_grab_cb_resource_destroy
+};
+
+static void
+_e_text_input_method_context_keyboard_grab_cb_keyboard_unbind(struct wl_resource *resource)
+{
+   E_Input_Method_Context *context = wl_resource_get_user_data(resource);
+
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+   context->keyboard = NULL;
+   if (action_handler_key_down)
+     ecore_event_handler_del(action_handler_key_down);
+   if (action_handler_key_up)
+     ecore_event_handler_del(action_handler_key_up);
+}
+
+static Eina_Bool
+_e_client_move_key_down(void *data EINA_UNUSED, int type EINA_UNUSED, void *event)
+{
+   E_Input_Method_Context *context = NULL;
+   E_Comp_Data *cdata = NULL;
+   Ecore_Event_Key *ev;
+   uint32_t serial;
+
+   if (!(context = data)) return ECORE_CALLBACK_PASS_ON;
+   if (!(cdata = context->model->cdata)) return ECORE_CALLBACK_PASS_ON;
+   if (!(ev = event)) return ECORE_CALLBACK_PASS_ON;
+
+   serial = wl_display_next_serial(cdata->wl.disp);
+   wl_keyboard_send_key(context->keyboard, serial, ev->timestamp,
+                                       ev->keycode - 8, WL_KEYBOARD_KEY_STATE_PRESSED);
+   return ECORE_CALLBACK_RENEW;
+}
+
+static Eina_Bool
+_e_client_move_key_up(void *data EINA_UNUSED, int type EINA_UNUSED, void *event)
+{
+   E_Input_Method_Context *context = NULL;
+   E_Comp_Data *cdata = NULL;
+   Ecore_Event_Key *ev;
+   uint32_t serial;
+
+   if (!(context = data)) return ECORE_CALLBACK_PASS_ON;
+   if (!(cdata = context->model->cdata)) return ECORE_CALLBACK_PASS_ON;
+   if (!(ev = event)) return ECORE_CALLBACK_PASS_ON;
+
+   serial = wl_display_next_serial(cdata->wl.disp);
+   wl_keyboard_send_key(context->keyboard, serial, ev->timestamp,
+                                        ev->keycode - 8, WL_KEYBOARD_KEY_STATE_RELEASED);
+   return ECORE_CALLBACK_RENEW;
+}
+
+static void
 _e_text_input_method_context_cb_keyboard_grab(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 {
    DBG("Input Method Context - grab keyboard %d", wl_resource_get_id(resource));
+   E_Input_Method_Context *context  = wl_resource_get_user_data(resource);
+   struct wl_resource *keyboard = NULL;
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+   keyboard = wl_resource_create(client, &wl_keyboard_interface, 1, id);
+   if (!keyboard)
+     {
+        wl_client_post_no_memory(client);
+        return;
+     }
 
-   (void)client;
-   (void)resource;
-   (void)id;
+   wl_resource_set_implementation(keyboard, &_e_keyboard_grab_interface, context, _e_text_input_method_context_keyboard_grab_cb_keyboard_unbind);
+
+   context->keyboard = keyboard;
+   if (!action_handler_key_down)
+     action_handler_key_down = ecore_event_handler_add(ECORE_EVENT_KEY_DOWN, _e_client_move_key_down, context);
+   if (!action_handler_key_up)
+     action_handler_key_up = ecore_event_handler_add(ECORE_EVENT_KEY_UP, _e_client_move_key_up, context);
 }
 
 static void
@@ -241,12 +328,26 @@ _e_text_input_method_context_cb_key(struct wl_client *client, struct wl_resource
 {
    DBG("Input Method Context - key %d", wl_resource_get_id(resource));
 
-   (void)client;
-   (void)resource;
-   (void)serial;
-   (void)time;
-   (void)key;
-   (void)state_w;
+   E_Input_Method_Context *context  = wl_resource_get_user_data(resource);
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+   if (!context->keyboard)
+     {
+        wl_resource_post_error(context->keyboard,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context Keyboard For Resource");
+        return;
+     }
+   wl_keyboard_send_key(context->keyboard,
+                            serial,
+                            time,
+                            key,
+                            state_w);
 }
 
 static void
@@ -254,13 +355,27 @@ _e_text_input_method_context_cb_modifiers(struct wl_client *client, struct wl_re
 {
    DBG("Input Method Context - modifiers %d", wl_resource_get_id(resource));
 
-   (void)client;
-   (void)resource;
-   (void)serial;
-   (void)mods_depressed;
-   (void)mods_latched;
-   (void)mods_locked;
-   (void)group;
+   E_Input_Method_Context *context  = wl_resource_get_user_data(resource);
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+   if (!context->keyboard)
+     {
+        wl_resource_post_error(context->keyboard,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context Keyboard For Resource");
+        return;
+     }
+   wl_keyboard_send_modifiers(context->keyboard,
+                               serial,
+                               mods_depressed,
+                               mods_latched,
+                               mods_locked,
+                               group);
 }
 
 static void
