@@ -59,6 +59,7 @@ static E_Input_Method *g_input_method = NULL;
 static Eina_List *shutdown_list = NULL;
 static Eina_Bool g_keyboard_connecting = EINA_FALSE;
 static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
+static Ecore_Event_Handler *ecore_key_down_handler = NULL;
 
 static void
 _e_mod_text_input_shutdown_cb_add(void (*func)(void *data), void *data)
@@ -972,13 +973,19 @@ EAPI E_Module_Api e_modapi = { E_MODULE_API_VERSION, "Wl_Text_Input" };
 static void
 _e_mod_eeze_udev_watch_cb(const char *text, Eeze_Udev_Event event, void *data, Eeze_Udev_Watch *watch)
 {
-    if (event == EEZE_UDEV_EVENT_ADD)
-      {
-          g_keyboard_connecting = EINA_TRUE;
-          e_input_panel_visibility_change(EINA_FALSE);
-      }
-    else if (event == EEZE_UDEV_EVENT_REMOVE)
-      g_keyboard_connecting = EINA_FALSE;
+   if (event == EEZE_UDEV_EVENT_REMOVE)
+     g_keyboard_connecting = EINA_FALSE;
+}
+
+static Eina_Bool
+_e_mod_ecore_key_down_cb (void *data, int type, void *event)
+{
+   if (g_keyboard_connecting == EINA_FALSE)
+     {
+        g_keyboard_connecting = EINA_TRUE;
+        e_input_panel_visibility_change(EINA_FALSE);
+     }
+   return ECORE_CALLBACK_PASS_ON;
 }
 
 EAPI void *
@@ -1001,10 +1008,17 @@ e_modapi_init(E_Module *m)
      goto err;
 
    eeze_udev_watch_hander = eeze_udev_watch_add(EEZE_UDEV_TYPE_KEYBOARD,
-                                                EEZE_UDEV_EVENT_ADD | EEZE_UDEV_EVENT_REMOVE,
+                                                EEZE_UDEV_EVENT_REMOVE,
                                                 _e_mod_eeze_udev_watch_cb,
                                                 NULL);
    if (!eeze_udev_watch_hander)
+     goto err;
+
+   ecore_key_down_handler = ecore_event_handler_add(ECORE_EVENT_KEY_DOWN,
+                                                    _e_mod_ecore_key_down_cb,
+                                                    NULL);
+
+   if (!ecore_key_down_handler)
      goto err;
 
    return m;
@@ -1016,10 +1030,16 @@ err:
 EAPI int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
+   if (ecore_key_down_handler)
+     {
+        ecore_event_handler_del(ecore_key_down_handler);
+        ecore_key_down_handler = NULL;
+     }
+
    if (eeze_udev_watch_hander)
      {
-         eeze_udev_watch_del(eeze_udev_watch_hander);
-         eeze_udev_watch_hander = NULL;
+        eeze_udev_watch_del(eeze_udev_watch_hander);
+        eeze_udev_watch_hander = NULL;
      }
    _e_mod_text_input_shutdown();
 
