@@ -970,6 +970,23 @@ _e_mod_text_input_shutdown(void)
 
 EAPI E_Module_Api e_modapi = { E_MODULE_API_VERSION, "Wl_Text_Input" };
 
+static Eina_Bool is_number_key(const char *str)
+{
+   if (!str) return EINA_FALSE;
+
+   int result = atoi(str);
+
+   if (result == 0)
+     {
+        if (!strcmp(str, "0"))
+          return EINA_TRUE;
+        else
+          return EINA_FALSE;
+     }
+   else
+     return EINA_TRUE;
+}
+
 static void
 _e_mod_eeze_udev_watch_cb(const char *text, Eeze_Udev_Event event, void *data, Eeze_Udev_Watch *watch)
 {
@@ -978,13 +995,28 @@ _e_mod_eeze_udev_watch_cb(const char *text, Eeze_Udev_Event event, void *data, E
 }
 
 static Eina_Bool
-_e_mod_ecore_key_down_cb (void *data, int type, void *event)
+_e_mod_ecore_key_down_cb(void *data, int type, void *event)
 {
-   if (g_keyboard_connecting == EINA_FALSE)
-     {
-        g_keyboard_connecting = EINA_TRUE;
-        e_input_panel_visibility_change(EINA_FALSE);
-     }
+   Ecore_Event_Key *ev = (Ecore_Event_Key *)event;
+
+   if (g_keyboard_connecting == EINA_TRUE)
+     return ECORE_CALLBACK_PASS_ON;
+
+   /* process remote controller key exceptionally */
+   if (((!strcmp(ev->key, "Down") ||
+         !strcmp(ev->key, "Up") ||
+         !strcmp(ev->key, "Right") ||
+         !strcmp(ev->key, "Left")) && !ev->string) ||
+       !strcmp(ev->key, "Return") ||
+       !strcmp(ev->key, "Pause") ||
+       !strcmp(ev->key, "NoSymbol") ||
+       !strncmp(ev->key, "XF86", 4) ||
+       is_number_key(ev->string))
+     return ECORE_CALLBACK_PASS_ON;
+
+   g_keyboard_connecting = EINA_TRUE;
+   e_input_panel_visibility_change(EINA_FALSE);
+
    return ECORE_CALLBACK_PASS_ON;
 }
 
