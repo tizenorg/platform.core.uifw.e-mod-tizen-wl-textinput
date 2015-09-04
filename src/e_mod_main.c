@@ -17,7 +17,6 @@ struct _E_Text_Input
 
    E_Comp_Data *cdata;
    Eina_List *input_methods;
-   Eina_Rectangle *cursor_rect;
    Eina_Bool input_panel_visibile;
 };
 
@@ -600,8 +599,6 @@ _e_text_input_cb_cursor_rectangle_set(struct wl_client *client EINA_UNUSED, stru
         return;
      }
 
-   text_input->cursor_rect = eina_rectangle_new(x, y, width, height);
-
    // TODO: issue event update input_panel
 }
 
@@ -763,12 +760,6 @@ _e_text_input_cb_destroy(struct wl_resource *resource)
       _e_text_input_deactivate(text_input, input_method);
 
    e_input_panel_visibility_change(EINA_FALSE);
-
-   if (text_input->cursor_rect)
-     {
-        eina_rectangle_free(text_input->cursor_rect);
-        text_input->cursor_rect = NULL;
-     }
 
    free(text_input);
 }
