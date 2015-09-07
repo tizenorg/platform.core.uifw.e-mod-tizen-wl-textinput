@@ -332,6 +332,10 @@ _e_text_input_method_context_cb_resource_destroy(struct wl_resource *resource)
    if (context->keyboard)
      wl_resource_destroy(context->keyboard);
 
+   if ((context->input_method) &&
+       (context->input_method->context == context))
+     context->input_method->context = NULL;
+
    free(context);
 }
 
