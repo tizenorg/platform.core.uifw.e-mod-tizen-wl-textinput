@@ -23,6 +23,8 @@ typedef struct _E_Input_Method E_Input_Method;
 typedef struct _E_Input_Method_Context E_Input_Method_Context;
 typedef struct _E_Mod_Text_Input_Shutdown_Cb E_Mod_Text_Input_Shutdown_Cb;
 
+static Eina_Bool _e_mod_ecore_key_down_cb(void *data, int type, void *event);
+
 struct _E_Text_Input
 {
    struct wl_resource *resource;
@@ -533,6 +535,12 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
                                              input_method->context->resource);
           }
 
+        if (ecore_key_down_handler)
+          {
+             ecore_event_handler_del(ecore_key_down_handler);
+             ecore_key_down_handler = NULL;
+          }
+
         input_method->model = NULL;
         if (input_method->context) input_method->context->model = NULL;
         input_method->context = NULL;
@@ -581,6 +589,11 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
              ERR("Could not allocate space for Input_Method_Context");
              return;
           }
+
+        if (!ecore_key_down_handler)
+          ecore_key_down_handler = ecore_event_handler_add(ECORE_EVENT_KEY_DOWN,
+                                                           _e_mod_ecore_key_down_cb,
+                                                           NULL);
 
         context->resource =
            wl_resource_create(wl_resource_get_client(input_method->resource),
@@ -1227,13 +1240,6 @@ e_modapi_init(E_Module *m)
    if (!eeze_udev_watch_hander)
      goto err;
 
-   ecore_key_down_handler = ecore_event_handler_add(ECORE_EVENT_KEY_DOWN,
-                                                    _e_mod_ecore_key_down_cb,
-                                                    NULL);
-
-   if (!ecore_key_down_handler)
-     goto err;
-
    return m;
 err:
    _e_mod_text_input_shutdown();
@@ -1243,12 +1249,6 @@ err:
 EAPI int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
-   if (ecore_key_down_handler)
-     {
-        ecore_event_handler_del(ecore_key_down_handler);
-        ecore_key_down_handler = NULL;
-     }
-
    if (eeze_udev_watch_hander)
      {
         eeze_udev_watch_del(eeze_udev_watch_hander);
