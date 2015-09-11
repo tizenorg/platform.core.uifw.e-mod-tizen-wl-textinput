@@ -76,7 +76,6 @@ static E_Input_Method *g_input_method = NULL;
 static Eina_List *shutdown_list = NULL;
 static Eina_Bool g_keyboard_connecting = EINA_FALSE;
 static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
-static Ecore_Event_Handler *ecore_key_down_handler = NULL;
 
 static void
 _e_text_input_method_context_keyboard_grab_keyboard_state_update(E_Comp_Data *cdata, uint32_t keycode, Eina_Bool pressed)
@@ -145,12 +144,52 @@ _e_text_input_method_context_keyboard_grab_key(void *data, void *event, Eina_Boo
    return;
 }
 
+static Eina_Bool is_number_key(const char *str)
+{
+   if (!str) return EINA_FALSE;
+
+   int result = atoi(str);
+
+   if (result == 0)
+     {
+        if (!strcmp(str, "0"))
+          return EINA_TRUE;
+        else
+          return EINA_FALSE;
+     }
+   else
+     return EINA_TRUE;
+}
+
 static Eina_Bool
-_e_text_input_method_context_keyboard_grab_event_filter(void *data __UNUSED__, void *loop_data,int type, void *event __UNUSED__)
+_e_text_input_method_context_keyboard_grab_event_filter(void *data __UNUSED__, void *loop_data,int type, void *event)
 {
 
    if (type == ECORE_EVENT_KEY_DOWN)
      {
+        Ecore_Event_Key *ev = (Ecore_Event_Key *)event;
+
+        if (g_keyboard_connecting == EINA_FALSE)
+          {
+             /* process remote controller key exceptionally */
+             if (!(((!strcmp(ev->key, "Down") ||
+                     !strcmp(ev->key, "KP_Down") ||
+                     !strcmp(ev->key, "Up") ||
+                     !strcmp(ev->key, "KP_Up") ||
+                     !strcmp(ev->key, "Right") ||
+                     !strcmp(ev->key, "KP_Right") ||
+                     !strcmp(ev->key, "Left") ||
+                     !strcmp(ev->key, "KP_Left")) && !ev->string) ||
+                     !strcmp(ev->key, "Return") ||
+                   !strcmp(ev->key, "Pause") ||
+                   !strcmp(ev->key, "NoSymbol") ||
+                   !strncmp(ev->key, "XF86", 4) ||
+                   is_number_key(ev->string)))
+               {
+                  g_keyboard_connecting = EINA_TRUE;
+                  e_input_panel_visibility_change(EINA_FALSE);
+               }
+          }
         _e_text_input_method_context_keyboard_grab_key(data, event, EINA_TRUE);
         return EINA_FALSE;
      }
@@ -1147,58 +1186,11 @@ _e_mod_text_input_shutdown(void)
 
 EAPI E_Module_Api e_modapi = { E_MODULE_API_VERSION, "Wl_Text_Input" };
 
-static Eina_Bool is_number_key(const char *str)
-{
-   if (!str) return EINA_FALSE;
-
-   int result = atoi(str);
-
-   if (result == 0)
-     {
-        if (!strcmp(str, "0"))
-          return EINA_TRUE;
-        else
-          return EINA_FALSE;
-     }
-   else
-     return EINA_TRUE;
-}
-
 static void
 _e_mod_eeze_udev_watch_cb(const char *text, Eeze_Udev_Event event, void *data, Eeze_Udev_Watch *watch)
 {
    if (event == EEZE_UDEV_EVENT_REMOVE)
      g_keyboard_connecting = EINA_FALSE;
-}
-
-static Eina_Bool
-_e_mod_ecore_key_down_cb(void *data, int type, void *event)
-{
-   Ecore_Event_Key *ev = (Ecore_Event_Key *)event;
-
-   if (g_keyboard_connecting == EINA_TRUE)
-     return ECORE_CALLBACK_PASS_ON;
-
-   /* process remote controller key exceptionally */
-   if (((!strcmp(ev->key, "Down") ||
-         !strcmp(ev->key, "KP_Down") ||
-         !strcmp(ev->key, "Up") ||
-         !strcmp(ev->key, "KP_Up") ||
-         !strcmp(ev->key, "Right") ||
-         !strcmp(ev->key, "KP_Right") ||
-         !strcmp(ev->key, "Left") ||
-         !strcmp(ev->key, "KP_Left")) && !ev->string) ||
-       !strcmp(ev->key, "Return") ||
-       !strcmp(ev->key, "Pause") ||
-       !strcmp(ev->key, "NoSymbol") ||
-       !strncmp(ev->key, "XF86", 4) ||
-       is_number_key(ev->string))
-     return ECORE_CALLBACK_PASS_ON;
-
-   g_keyboard_connecting = EINA_TRUE;
-   e_input_panel_visibility_change(EINA_FALSE);
-
-   return ECORE_CALLBACK_PASS_ON;
 }
 
 EAPI void *
@@ -1227,13 +1219,6 @@ e_modapi_init(E_Module *m)
    if (!eeze_udev_watch_hander)
      goto err;
 
-   ecore_key_down_handler = ecore_event_handler_add(ECORE_EVENT_KEY_DOWN,
-                                                    _e_mod_ecore_key_down_cb,
-                                                    NULL);
-
-   if (!ecore_key_down_handler)
-     goto err;
-
    return m;
 err:
    _e_mod_text_input_shutdown();
@@ -1243,12 +1228,6 @@ err:
 EAPI int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
-   if (ecore_key_down_handler)
-     {
-        ecore_event_handler_del(ecore_key_down_handler);
-        ecore_key_down_handler = NULL;
-     }
-
    if (eeze_udev_watch_hander)
      {
         eeze_udev_watch_del(eeze_udev_watch_hander);
