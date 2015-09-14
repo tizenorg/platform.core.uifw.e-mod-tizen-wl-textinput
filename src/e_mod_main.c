@@ -5,18 +5,6 @@
 #include <input-method-server-protocol.h>
 #include "Eeze.h"
 
-# define E_LIST_FILTER_HANDLER_APPEND(list, callback, data) \
-  do \
-    { \
-       Ecore_Event_Filter *_eh; \
-       _eh = ecore_event_filter_add(NULL, (Ecore_Filter_Cb)callback, NULL, data); \
-       if (_eh) \
-          list = eina_list_append(list, _eh); \
-       else \
-          DBG("ecore event filter add failed"); \
-    } \
-  while (0)
-
 typedef struct _E_Text_Input E_Text_Input;
 typedef struct _E_Text_Input_Mgr E_Text_Input_Mgr;
 typedef struct _E_Input_Method E_Input_Method;
@@ -76,6 +64,7 @@ static E_Input_Method *g_input_method = NULL;
 static Eina_List *shutdown_list = NULL;
 static Eina_Bool g_keyboard_connecting = EINA_FALSE;
 static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
+static Ecore_Event_Handler *ecore_key_down_handler = NULL;
 
 static void
 _e_text_input_method_context_keyboard_grab_keyboard_state_update(E_Comp_Data *cdata, uint32_t keycode, Eina_Bool pressed)
@@ -116,90 +105,47 @@ _e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(E_Comp_Data
 }
 
 static void
-_e_text_input_method_context_keyboard_grab_key(void *data, void *event, Eina_Bool pressed)
+_e_text_input_method_context_key_send(E_Input_Method_Context *context, unsigned int keycode, unsigned int timestamp, enum wl_keyboard_key_state state)
 {
-   E_Input_Method_Context *context = NULL;
    E_Comp_Data *cdata = NULL;
-   Ecore_Event_Key *ev;
-   uint32_t serial, keycode;
+   uint32_t serial, nk;
 
-   if (!(context = data)) return;
-   if (!(context->model)) return;
    if (!(cdata = context->model->cdata)) return;
-   if (!(ev = event)) return;
-
-   keycode = ev->keycode - 8;
+   nk = keycode - 8;
 
    /* update modifier state */
-   _e_text_input_method_context_keyboard_grab_keyboard_state_update(cdata, keycode, pressed);
+   _e_text_input_method_context_keyboard_grab_keyboard_state_update(cdata, nk, state == WL_KEYBOARD_KEY_STATE_PRESSED);
 
    serial = wl_display_next_serial(cdata->wl.disp);
-   wl_keyboard_send_key(context->kbd.resource, serial, ev->timestamp, keycode,
-                        pressed == EINA_TRUE ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
+
+   wl_keyboard_send_key(context->kbd.resource, serial, timestamp, nk, state);
    if (cdata->kbd.mod_changed)
      {
         _e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(cdata, context->kbd.resource);
         cdata->kbd.mod_changed = 0;
      }
-   return;
-}
-
-static Eina_Bool is_number_key(const char *str)
-{
-   if (!str) return EINA_FALSE;
-
-   int result = atoi(str);
-
-   if (result == 0)
-     {
-        if (!strcmp(str, "0"))
-          return EINA_TRUE;
-        else
-          return EINA_FALSE;
-     }
-   else
-     return EINA_TRUE;
 }
 
 static Eina_Bool
-_e_text_input_method_context_keyboard_grab_event_filter(void *data __UNUSED__, void *loop_data,int type, void *event)
+_e_text_input_method_context_ecore_cb_key_down(void *data, int ev_type EINA_UNUSED, Ecore_Event_Key *ev)
 {
+   E_Input_Method_Context *context = data;
 
-   if (type == ECORE_EVENT_KEY_DOWN)
-     {
-        Ecore_Event_Key *ev = (Ecore_Event_Key *)event;
+   _e_text_input_method_context_key_send(context, ev->keycode, ev->timestamp,
+                                         WL_KEYBOARD_KEY_STATE_PRESSED);
 
-        if (g_keyboard_connecting == EINA_FALSE)
-          {
-             /* process remote controller key exceptionally */
-             if (!(((!strcmp(ev->key, "Down") ||
-                     !strcmp(ev->key, "KP_Down") ||
-                     !strcmp(ev->key, "Up") ||
-                     !strcmp(ev->key, "KP_Up") ||
-                     !strcmp(ev->key, "Right") ||
-                     !strcmp(ev->key, "KP_Right") ||
-                     !strcmp(ev->key, "Left") ||
-                     !strcmp(ev->key, "KP_Left")) && !ev->string) ||
-                     !strcmp(ev->key, "Return") ||
-                   !strcmp(ev->key, "Pause") ||
-                   !strcmp(ev->key, "NoSymbol") ||
-                   !strncmp(ev->key, "XF86", 4) ||
-                   is_number_key(ev->string)))
-               {
-                  g_keyboard_connecting = EINA_TRUE;
-                  e_input_panel_visibility_change(EINA_FALSE);
-               }
-          }
-        _e_text_input_method_context_keyboard_grab_key(data, event, EINA_TRUE);
-        return EINA_FALSE;
-     }
-   else if (type == ECORE_EVENT_KEY_UP)
-     {
-        _e_text_input_method_context_keyboard_grab_key(data, event, EINA_FALSE);
-        return EINA_FALSE;
-     }
+   return ECORE_CALLBACK_RENEW;
+}
 
-   return EINA_TRUE;
+static Eina_Bool
+_e_text_input_method_context_ecore_cb_key_up(void *data, int ev_type EINA_UNUSED, Ecore_Event_Key *ev)
+{
+   E_Input_Method_Context *context = data;
+
+   _e_text_input_method_context_key_send(context, ev->keycode, ev->timestamp,
+                                         WL_KEYBOARD_KEY_STATE_RELEASED);
+
+   return ECORE_CALLBACK_RENEW;
 }
 
 static void
@@ -212,14 +158,19 @@ _e_text_input_method_context_grab_set(E_Input_Method_Context *context, Eina_Bool
 
    if (set)
      {
-        E_LIST_FILTER_HANDLER_APPEND(context->kbd.handlers,
-                                     _e_text_input_method_context_keyboard_grab_event_filter,
-                                     context);
+        E_LIST_HANDLER_APPEND(context->kbd.handlers, ECORE_EVENT_KEY_DOWN,
+                              _e_text_input_method_context_ecore_cb_key_down,
+                              context);
+        E_LIST_HANDLER_APPEND(context->kbd.handlers, ECORE_EVENT_KEY_UP,
+                              _e_text_input_method_context_ecore_cb_key_up,
+                              context);
+
         e_comp_grab_input(e_comp, 0, 1);
      }
    else
      {
-        E_FREE_LIST(context->kbd.handlers, ecore_event_filter_del);
+        E_FREE_LIST(context->kbd.handlers, ecore_event_handler_del);
+
         e_comp_ungrab_input(e_comp, 0, 1);
      }
 }
@@ -558,6 +509,53 @@ _e_text_input_method_context_cb_resource_destroy(struct wl_resource *resource)
    free(context);
 }
 
+static Eina_Bool is_number_key(const char *str)
+ {
+    if (!str) return EINA_FALSE;
+
+    int result = atoi(str);
+
+    if (result == 0)
+      {
+         if (!strcmp(str, "0"))
+           return EINA_TRUE;
+         else
+           return EINA_FALSE;
+      }
+    else
+      return EINA_TRUE;
+ }
+
+static Eina_Bool
+_e_mod_ecore_key_down_cb(void *data, int type, void *event)
+{
+   Ecore_Event_Key *ev = (Ecore_Event_Key *)event;
+
+   if (g_keyboard_connecting == EINA_TRUE)
+     return ECORE_CALLBACK_PASS_ON;
+
+   /* process remote controller key exceptionally */
+   if (((!strcmp(ev->key, "Down") ||
+         !strcmp(ev->key, "KP_Down") ||
+         !strcmp(ev->key, "Up") ||
+         !strcmp(ev->key, "KP_Up") ||
+         !strcmp(ev->key, "Right") ||
+         !strcmp(ev->key, "KP_Right") ||
+         !strcmp(ev->key, "Left") ||
+         !strcmp(ev->key, "KP_Left")) && !ev->string) ||
+       !strcmp(ev->key, "Return") ||
+       !strcmp(ev->key, "Pause") ||
+       !strcmp(ev->key, "NoSymbol") ||
+       !strncmp(ev->key, "XF86", 4) ||
+       is_number_key(ev->string))
+     return ECORE_CALLBACK_PASS_ON;
+
+   g_keyboard_connecting = EINA_TRUE;
+   e_input_panel_visibility_change(EINA_FALSE);
+
+   return ECORE_CALLBACK_PASS_ON;
+}
+
 static void
 _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
 {
@@ -570,6 +568,11 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
              // TODO: finish the grab of keyboard.
              wl_input_method_send_deactivate(input_method->resource,
                                              input_method->context->resource);
+          }
+        if (ecore_key_down_handler)
+          {
+             ecore_event_handler_del(ecore_key_down_handler);
+             ecore_key_down_handler = NULL;
           }
 
         input_method->model = NULL;
@@ -620,6 +623,11 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
              ERR("Could not allocate space for Input_Method_Context");
              return;
           }
+
+        if (!ecore_key_down_handler)
+          ecore_key_down_handler = ecore_event_handler_add(ECORE_EVENT_KEY_DOWN,
+                                                           _e_mod_ecore_key_down_cb,
+                                                           NULL);
 
         context->resource =
            wl_resource_create(wl_resource_get_client(input_method->resource),
