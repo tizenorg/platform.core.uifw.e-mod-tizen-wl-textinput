@@ -317,6 +317,24 @@ _e_text_input_method_context_cb_selection_region(struct wl_client *client EINA_U
                                          serial, start, end);
 }
 
+static void
+_e_text_input_method_context_cb_private_command(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t serial, const char *command)
+{
+   E_Input_Method_Context *context = wl_resource_get_user_data(resource);
+
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+
+   if ((context->model) && (context->model->resource))
+     wl_text_input_send_private_command(context->model->resource,
+                                        serial, command);
+}
+
 static const struct wl_input_method_context_interface _e_text_input_method_context_implementation = {
      _e_text_input_method_context_cb_destroy,
      _e_text_input_method_context_cb_string_commit,
@@ -332,7 +350,8 @@ static const struct wl_input_method_context_interface _e_text_input_method_conte
      _e_text_input_method_context_cb_modifiers,
      _e_text_input_method_context_cb_language,
      _e_text_input_method_context_cb_text_direction,
-     _e_text_input_method_context_cb_selection_region
+     _e_text_input_method_context_cb_selection_region,
+     _e_text_input_method_context_cb_private_command
 };
 
 static void
