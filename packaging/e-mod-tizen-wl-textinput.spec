@@ -22,6 +22,12 @@ The Enlightenment WM Wayland Text Input Module for Tizen
 %setup -q -n %{name}-%{version}
 
 %build
+
+%if "%{profile}" == "tv"
+CFLAGS+=" -D_TV";
+CXXFLAGS+=" -D_TV";
+%endif
+
 %autogen
 %configure
 make %{?_smp_mflags}

@@ -62,7 +62,7 @@ struct _E_Mod_Text_Input_Shutdown_Cb
 
 static E_Input_Method *g_input_method = NULL;
 static Eina_List *shutdown_list = NULL;
-static Eina_Bool g_keyboard_connecting = EINA_FALSE;
+static Eina_Bool g_disable_show_panel = EINA_FALSE;
 static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
 static Ecore_Event_Handler *ecore_key_down_handler = NULL;
 
@@ -569,7 +569,7 @@ _e_mod_ecore_key_down_cb(void *data, int type, void *event)
 {
    Ecore_Event_Key *ev = (Ecore_Event_Key *)event;
 
-   if (g_keyboard_connecting == EINA_TRUE)
+   if (g_disable_show_panel == EINA_TRUE)
      return ECORE_CALLBACK_PASS_ON;
 
    /* process remote controller key exceptionally */
@@ -587,8 +587,7 @@ _e_mod_ecore_key_down_cb(void *data, int type, void *event)
        !strncmp(ev->key, "XF86", 4) ||
        is_number_key(ev->string))
      return ECORE_CALLBACK_PASS_ON;
-
-   g_keyboard_connecting = EINA_TRUE;
+   g_disable_show_panel = EINA_TRUE;
    e_input_panel_visibility_change(EINA_FALSE);
 
    return ECORE_CALLBACK_PASS_ON;
@@ -682,6 +681,10 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
         wl_input_method_send_activate(input_method->resource, context->resource);
      }
 
+#ifdef _TV
+   g_disable_show_panel = EINA_FALSE;
+#endif
+
    if (text_input->input_panel_visibile)
      e_input_panel_visibility_change(EINA_TRUE);
 
@@ -751,7 +754,7 @@ _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct w
         return;
      }
 
-   if (g_keyboard_connecting == EINA_TRUE)
+   if (g_disable_show_panel == EINA_TRUE)
      return;
 
    text_input->input_panel_visibile = EINA_TRUE;
@@ -1262,7 +1265,7 @@ static void
 _e_mod_eeze_udev_watch_cb(const char *text, Eeze_Udev_Event event, void *data, Eeze_Udev_Watch *watch)
 {
    if (event == EEZE_UDEV_EVENT_REMOVE)
-     g_keyboard_connecting = EINA_FALSE;
+     g_disable_show_panel = EINA_FALSE;
 }
 
 EAPI void *
