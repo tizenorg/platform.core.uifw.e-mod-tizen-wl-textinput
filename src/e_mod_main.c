@@ -621,6 +621,10 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
 
         if (text_input->resource)
           wl_text_input_send_leave(text_input->resource);
+
+#ifdef _TV
+        g_disable_show_panel = EINA_FALSE;
+#endif
      }
 }
 
