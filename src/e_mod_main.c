@@ -5,6 +5,9 @@
 #include <input-method-server-protocol.h>
 #include "Eeze.h"
 
+static Eina_Bool _tim_cb_client_hide(void *data EINA_UNUSED, int type, void *event);
+static Eina_Bool _tim_cb_client_resize(void *data EINA_UNUSED, int type, void *event);
+
 typedef struct _E_Text_Input E_Text_Input;
 typedef struct _E_Text_Input_Mgr E_Text_Input_Mgr;
 typedef struct _E_Input_Method E_Input_Method;
@@ -65,6 +68,7 @@ static Eina_List *shutdown_list = NULL;
 static Eina_Bool g_disable_show_panel = EINA_FALSE;
 static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
 static Ecore_Event_Handler *ecore_key_down_handler = NULL;
+static Eina_List *handlers = NULL;
 
 static void
 _e_text_input_method_context_keyboard_grab_keyboard_state_update(E_Comp_Data *cdata, uint32_t keycode, Eina_Bool pressed)
@@ -1273,6 +1277,52 @@ _e_mod_eeze_udev_watch_cb(const char *text, Eeze_Udev_Event event, void *data, E
      g_disable_show_panel = EINA_FALSE;
 }
 
+static Eina_Bool
+_tim_cb_client_hide(void *data EINA_UNUSED, int type EINA_UNUSED, void *event)
+{
+   E_Event_Client *ev;
+   E_Client *ec;
+   Eina_Bool found;
+
+   ev = (E_Event_Client *)event;
+   EINA_SAFETY_ON_NULL_RETURN_VAL(ev, ECORE_CALLBACK_PASS_ON);
+
+   ec = ev->ec;
+   EINA_SAFETY_ON_NULL_RETURN_VAL(ec, ECORE_CALLBACK_PASS_ON);
+
+   found = e_input_panel_client_find(ec);
+   if (!found) return ECORE_CALLBACK_PASS_ON;
+
+   /* TODO: send geometry info (0,0 0x0) of input panel window to client */
+   fprintf(stdout, "[tim] %20.20s(%04d) %15.15s ec:0x%p %04d,%04d %04dx%04d vis:%d\n", __func__, __LINE__, "HIDE", ec, ec->x, ec->y, ec->w, ec->h, ec->visible);
+
+   return ECORE_CALLBACK_PASS_ON;
+}
+
+static Eina_Bool
+_tim_cb_client_resize(void *data EINA_UNUSED, int type EINA_UNUSED, void *event)
+{
+   E_Event_Client *ev;
+   E_Client *ec;
+   Eina_Bool found;
+
+   ev = (E_Event_Client *)event;
+   EINA_SAFETY_ON_NULL_RETURN_VAL(ev, ECORE_CALLBACK_PASS_ON);
+
+   ec = ev->ec;
+   EINA_SAFETY_ON_NULL_RETURN_VAL(ec, ECORE_CALLBACK_PASS_ON);
+
+   found = e_input_panel_client_find(ec);
+   if (!found) return ECORE_CALLBACK_PASS_ON;
+   if (!ec->visible) return ECORE_CALLBACK_PASS_ON;
+   if ((ec->w < 1) && (ec->h < 1)) return ECORE_CALLBACK_PASS_ON;
+
+   /* TODO: send geometry info (ec->x, ec->y ec->w x ec->h) of input panel window to client if it is changed */
+   fprintf(stdout, "[tim] %20.20s(%04d) %15.15s ec:0x%p %04d,%04d %04dx%04d vis:%d\n", __func__, __LINE__, "RESIZE", ec, ec->x, ec->y, ec->w, ec->h, ec->visible);
+
+   return ECORE_CALLBACK_PASS_ON;
+}
+
 EAPI void *
 e_modapi_init(E_Module *m)
 {
@@ -1292,6 +1342,9 @@ e_modapi_init(E_Module *m)
    if (!_e_text_input_manager_create(cdata))
      goto err;
 
+   E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_HIDE,   _tim_cb_client_hide,   NULL);
+   E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_RESIZE, _tim_cb_client_resize, NULL);
+
    eeze_udev_watch_hander = eeze_udev_watch_add(EEZE_UDEV_TYPE_KEYBOARD,
                                                 EEZE_UDEV_EVENT_REMOVE,
                                                 _e_mod_eeze_udev_watch_cb,
@@ -1308,6 +1361,8 @@ err:
 EAPI int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
+   E_FREE_LIST(handlers, ecore_event_handler_del);
+
    if (eeze_udev_watch_hander)
      {
         eeze_udev_watch_del(eeze_udev_watch_hander);
