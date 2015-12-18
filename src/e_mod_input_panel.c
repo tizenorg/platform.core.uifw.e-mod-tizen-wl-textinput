@@ -125,8 +125,27 @@ _e_input_panel_position_set(E_Client *ec, int w, int h)
 
    e_zone_useful_geometry_get(ec->zone, &zx, &zy, &zw, &zh);
 
-   nx = zx + (zw - w) / 2;
-   ny = zy + zh - h;
+   /* Get the position of center bottom each angles */
+   switch (ec->e.state.rot.ang.curr)
+     {
+        case 90:
+           nx = zx + zw - w;
+           ny = zy + (zh - h) / 2;
+           break;
+        case 180:
+           nx = zx + (zw - w) / 2;
+           ny = zy;
+           break;
+        case 270:
+           nx = zx;
+           ny = zy + (zh - h) / 2;
+           break;
+        case 0:
+        default:
+           nx = zx + (zw - w) / 2;
+           ny = zy + zh - h;
+           break;
+     }
 
    e_client_util_move_without_frame(ec, nx, ny);
 }
