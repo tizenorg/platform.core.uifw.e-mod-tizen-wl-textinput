@@ -460,6 +460,25 @@ e_input_panel_visibility_change(Eina_Bool visible)
 }
 
 Eina_Bool
+e_input_panel_client_find(E_Client *ec)
+{
+   E_Input_Panel_Surface *ips;
+   Eina_List *l;
+
+   EINA_SAFETY_ON_NULL_RETURN_VAL(ec, EINA_FALSE);
+
+   if (!g_input_panel) return EINA_FALSE;
+
+   EINA_LIST_FOREACH(g_input_panel->surfaces, l, ips)
+     {
+        if (!ips->ec) continue;
+        if (ips->ec == ec) return EINA_TRUE;
+     }
+
+   return EINA_FALSE;
+}
+
+Eina_Bool
 e_input_panel_init(E_Comp_Data *cdata)
 {
    if (!cdata) return EINA_FALSE;
