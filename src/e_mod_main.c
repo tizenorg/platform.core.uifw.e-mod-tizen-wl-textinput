@@ -1155,8 +1155,6 @@ _e_text_cb_bind_input_method(struct wl_client *client, void *data, uint32_t vers
 
    if (!input_method) return;
 
-   resource = wl_resource_create(client, &wl_input_method_interface, 1, id);
-
    if (input_method->resource)
      {
         wl_resource_post_error(resource, WL_DISPLAY_ERROR_INVALID_OBJECT,
@@ -1164,10 +1162,15 @@ _e_text_cb_bind_input_method(struct wl_client *client, void *data, uint32_t vers
         return;
      }
 
+   resource = wl_resource_create(client, &wl_input_method_interface, 1, id);
+
    input_method->resource = resource;
 
-   wl_resource_set_implementation(resource, NULL, input_method,
-                                  _e_text_input_method_cb_unbind);
+   if (resource)
+     {
+        wl_resource_set_implementation(resource, NULL, input_method,
+                                       _e_text_input_method_cb_unbind);
+     }
 }
 
 static void
