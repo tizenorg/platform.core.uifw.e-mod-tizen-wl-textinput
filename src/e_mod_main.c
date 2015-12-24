@@ -51,6 +51,11 @@ struct _E_Input_Method_Context
       struct wl_resource *resource;
       Eina_List *handlers;
       Eina_Bool grabbed;
+      struct xkb_keymap *keymap;
+      struct xkb_state *state;
+      xkb_mod_mask_t mod_depressed, mod_latched, mod_locked;
+      xkb_layout_index_t mod_group;
+      int mod_changed;
    } kbd;
 };
 
@@ -67,41 +72,43 @@ static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
 static Ecore_Event_Handler *ecore_key_down_handler = NULL;
 
 static void
-_e_text_input_method_context_keyboard_grab_keyboard_state_update(E_Comp_Data *cdata, uint32_t keycode, Eina_Bool pressed)
+_e_text_input_method_context_keyboard_grab_keyboard_state_update(E_Input_Method_Context *context, uint32_t keycode, Eina_Bool pressed)
 {
    enum xkb_key_direction dir;
 
-   if (!cdata->xkb.state) return;
+   if (!context->kbd.state) return;
 
    if (pressed) dir = XKB_KEY_DOWN;
    else dir = XKB_KEY_UP;
 
-   cdata->kbd.mod_changed =
-     xkb_state_update_key(cdata->xkb.state, keycode + 8, dir);
+   context->kbd.mod_changed =
+     xkb_state_update_key(context->kbd.state, keycode + 8, dir);
 }
 
 static void
-_e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(E_Comp_Data *cdata, struct wl_resource *keyboard)
+_e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(E_Input_Method_Context *context, struct wl_resource *keyboard)
 {
    uint32_t serial;
+   E_Comp_Data *cdata = NULL;
 
-   if (!cdata->xkb.state) return;
+   if (!context->model || !(cdata = context->model->cdata)) return;
+   if (!context->kbd.state) return;
 
-   cdata->kbd.mod_depressed =
-     xkb_state_serialize_mods(cdata->xkb.state, XKB_STATE_DEPRESSED);
-   cdata->kbd.mod_latched =
-     xkb_state_serialize_mods(cdata->xkb.state, XKB_STATE_MODS_LATCHED);
-   cdata->kbd.mod_locked =
-     xkb_state_serialize_mods(cdata->xkb.state, XKB_STATE_MODS_LOCKED);
-   cdata->kbd.mod_group =
-     xkb_state_serialize_layout(cdata->xkb.state, XKB_STATE_LAYOUT_EFFECTIVE);
+   context->kbd.mod_depressed =
+     xkb_state_serialize_mods(context->kbd.state, XKB_STATE_DEPRESSED);
+   context->kbd.mod_latched =
+     xkb_state_serialize_mods(context->kbd.state, XKB_STATE_MODS_LATCHED);
+   context->kbd.mod_locked =
+     xkb_state_serialize_mods(context->kbd.state, XKB_STATE_MODS_LOCKED);
+   context->kbd.mod_group =
+     xkb_state_serialize_layout(context->kbd.state, XKB_STATE_LAYOUT_EFFECTIVE);
 
    serial = wl_display_next_serial(cdata->wl.disp);
    wl_keyboard_send_modifiers(keyboard, serial,
-                              cdata->kbd.mod_depressed,
-                              cdata->kbd.mod_latched,
-                              cdata->kbd.mod_locked,
-                              cdata->kbd.mod_group);
+                              context->kbd.mod_depressed,
+                              context->kbd.mod_latched,
+                              context->kbd.mod_locked,
+                              context->kbd.mod_group);
 }
 
 static void
@@ -110,19 +117,19 @@ _e_text_input_method_context_key_send(E_Input_Method_Context *context, unsigned 
    E_Comp_Data *cdata = NULL;
    uint32_t serial, nk;
 
-   if (!(cdata = context->model->cdata)) return;
+   if (!context->model || !(cdata = context->model->cdata)) return;
    nk = keycode - 8;
 
    /* update modifier state */
-   _e_text_input_method_context_keyboard_grab_keyboard_state_update(cdata, nk, state == WL_KEYBOARD_KEY_STATE_PRESSED);
+   _e_text_input_method_context_keyboard_grab_keyboard_state_update(context, nk, state == WL_KEYBOARD_KEY_STATE_PRESSED);
 
    serial = wl_display_next_serial(cdata->wl.disp);
 
    wl_keyboard_send_key(context->kbd.resource, serial, timestamp, nk, state);
-   if (cdata->kbd.mod_changed)
+   if (context->kbd.mod_changed)
      {
-        _e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(cdata, context->kbd.resource);
-        cdata->kbd.mod_changed = 0;
+        _e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(context, context->kbd.resource);
+        context->kbd.mod_changed = 0;
      }
 }
 
@@ -151,13 +158,21 @@ _e_text_input_method_context_ecore_cb_key_up(void *data, int ev_type EINA_UNUSED
 static void
 _e_text_input_method_context_grab_set(E_Input_Method_Context *context, Eina_Bool set)
 {
+   E_Comp_Data *cdata = NULL;
    if (set == context->kbd.grabbed)
+     return;
+
+   if (!context->model || !(cdata = context->model->cdata))
      return;
 
    context->kbd.grabbed = set;
 
    if (set)
      {
+        if (context->kbd.keymap) xkb_map_unref(context->kbd.keymap);
+        if (context->kbd.state) xkb_state_unref(context->kbd.state);
+        context->kbd.keymap = xkb_map_ref(cdata->xkb.keymap);
+        context->kbd.state = xkb_state_new(cdata->xkb.keymap);
         E_LIST_HANDLER_APPEND(context->kbd.handlers, ECORE_EVENT_KEY_DOWN,
                               _e_text_input_method_context_ecore_cb_key_down,
                               context);
@@ -172,6 +187,9 @@ _e_text_input_method_context_grab_set(E_Input_Method_Context *context, Eina_Bool
         E_FREE_LIST(context->kbd.handlers, ecore_event_handler_del);
 
         e_comp_ungrab_input(e_comp, 0, 1);
+
+        if (context->kbd.keymap) xkb_map_unref(context->kbd.keymap);
+        if (context->kbd.state) xkb_state_unref(context->kbd.state);
      }
 }
 
