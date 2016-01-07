@@ -280,10 +280,9 @@ static void
 _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *resource, uint32_t id, struct wl_resource *surface_resource)
 {
    E_Input_Panel *input_panel = wl_resource_get_user_data(resource);
-   E_Pixmap *ep = wl_resource_get_user_data(surface_resource);
+   E_Client *ec = wl_resource_get_user_data(surface_resource);
    E_Input_Panel_Surface *ips = NULL;
    E_Comp_Client_Data *cdata = NULL;
-   E_Client *ec = NULL;
 
    if (!input_panel)
      {
@@ -293,36 +292,16 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
         return;
      }
 
-   if (!ep)
+   if (!ec)
      {
         wl_resource_post_error(surface_resource,
                                WL_DISPLAY_ERROR_INVALID_OBJECT,
-                               "No Pixmap Set On Surface");
+                               "No E_Client Set On Surface");
         return;
      }
 
-   if (e_pixmap_type_get(ep) != E_PIXMAP_TYPE_WL)
+   if (e_pixmap_type_get(ec->pixmap) != E_PIXMAP_TYPE_WL)
      return;
-
-   if (!(ips = E_NEW(E_Input_Panel_Surface, 1)))
-     {
-        wl_client_post_no_memory(client);
-        return;
-     }
-
-   if (!(ec = e_pixmap_client_get(ep)))
-     ec = e_pixmap_find_client(E_PIXMAP_TYPE_WL, e_pixmap_window_get(ep));
-
-   if (!ec)
-     {
-        if (!(ec = e_client_new(NULL, ep, 0, 0)))
-          {
-             wl_resource_post_error(surface_resource,
-                                    WL_DISPLAY_ERROR_INVALID_OBJECT,
-                                    "No Client For Pixmap");
-             return;
-          }
-     }
 
    if (!(cdata = ec->comp_data))
      {
@@ -349,6 +328,9 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
         return;
      }
 
+   if (ec->ignored)
+       e_client_unignore(ec);
+
    /* set input panel client properties */
    ec->borderless = EINA_TRUE;
    ec->argb = EINA_TRUE;
@@ -369,6 +351,12 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
    cdata->shell.ping = NULL;
    cdata->shell.map = _e_input_panel_surface_map;
    cdata->shell.unmap = _e_input_panel_surface_unmap;
+
+   if (!(ips = E_NEW(E_Input_Panel_Surface, 1)))
+     {
+        wl_client_post_no_memory(client);
+        return;
+     }
 
    ips->ec = ec;
    ips->input_panel = input_panel;
@@ -479,9 +467,9 @@ e_input_panel_client_find(E_Client *ec)
 }
 
 Eina_Bool
-e_input_panel_init(E_Comp_Data *cdata)
+e_input_panel_init(void)
 {
-   if (!cdata) return EINA_FALSE;
+   if (!e_comp_wl) return EINA_FALSE;
 
    if (!(g_input_panel = E_NEW(E_Input_Panel, 1)))
      {
@@ -489,7 +477,7 @@ e_input_panel_init(E_Comp_Data *cdata)
         return EINA_FALSE;
      }
 
-   g_input_panel->global = wl_global_create(cdata->wl.disp,
+   g_input_panel->global = wl_global_create(e_comp_wl->wl.disp,
                                             &wl_input_panel_interface, 1,
                                             g_input_panel, _e_input_panel_bind);
 
@@ -505,7 +493,7 @@ e_input_panel_init(E_Comp_Data *cdata)
 }
 
 void
-e_input_panel_shutdown(E_Comp_Data *cdata EINA_UNUSED)
+e_input_panel_shutdown(void)
 {
     if (g_input_panel)
       {

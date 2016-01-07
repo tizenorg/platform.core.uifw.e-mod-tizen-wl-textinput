@@ -17,7 +17,6 @@ struct _E_Text_Input
 {
    struct wl_resource *resource;
 
-   E_Comp_Data *cdata;
    Eina_List *input_methods;
    Eina_Bool input_panel_visibile;
 };
@@ -27,7 +26,6 @@ struct _E_Text_Input_Mgr
    struct wl_global *global;
    struct wl_resource *resource;
 
-   E_Comp_Data *cdata;
    Eina_List *text_input_list;
 };
 
@@ -36,7 +34,6 @@ struct _E_Input_Method
    struct wl_global *global;
    struct wl_resource *resource;
 
-   E_Comp_Data *cdata;
    E_Text_Input *model;
    E_Input_Method_Context *context;
 };
@@ -93,9 +90,8 @@ static void
 _e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(E_Input_Method_Context *context, struct wl_resource *keyboard)
 {
    uint32_t serial;
-   E_Comp_Data *cdata = NULL;
 
-   if (!context->model || !(cdata = context->model->cdata)) return;
+   if (!context->model) return;
    if (!context->kbd.state) return;
 
    context->kbd.mod_depressed =
@@ -107,7 +103,7 @@ _e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(E_Input_Met
    context->kbd.mod_group =
      xkb_state_serialize_layout(context->kbd.state, XKB_STATE_LAYOUT_EFFECTIVE);
 
-   serial = wl_display_next_serial(cdata->wl.disp);
+   serial = wl_display_next_serial(e_comp_wl->wl.disp);
    wl_keyboard_send_modifiers(keyboard, serial,
                               context->kbd.mod_depressed,
                               context->kbd.mod_latched,
@@ -118,16 +114,15 @@ _e_text_input_method_context_keyboard_grab_keyboard_modifiers_update(E_Input_Met
 static void
 _e_text_input_method_context_key_send(E_Input_Method_Context *context, unsigned int keycode, unsigned int timestamp, enum wl_keyboard_key_state state)
 {
-   E_Comp_Data *cdata = NULL;
    uint32_t serial, nk;
 
-   if (!context->model || !(cdata = context->model->cdata)) return;
+   if (!context->model) return;
    nk = keycode - 8;
 
    /* update modifier state */
    _e_text_input_method_context_keyboard_grab_keyboard_state_update(context, nk, state == WL_KEYBOARD_KEY_STATE_PRESSED);
 
-   serial = wl_display_next_serial(cdata->wl.disp);
+   serial = wl_display_next_serial(e_comp_wl->wl.disp);
 
    wl_keyboard_send_key(context->kbd.resource, serial, timestamp, nk, state);
    if (context->kbd.mod_changed)
@@ -162,11 +157,10 @@ _e_text_input_method_context_ecore_cb_key_up(void *data, int ev_type EINA_UNUSED
 static void
 _e_text_input_method_context_grab_set(E_Input_Method_Context *context, Eina_Bool set)
 {
-   E_Comp_Data *cdata = NULL;
    if (set == context->kbd.grabbed)
      return;
 
-   if (!context->model || !(cdata = context->model->cdata))
+   if (!context->model)
      return;
 
    context->kbd.grabbed = set;
@@ -175,8 +169,8 @@ _e_text_input_method_context_grab_set(E_Input_Method_Context *context, Eina_Bool
      {
         if (context->kbd.keymap) xkb_map_unref(context->kbd.keymap);
         if (context->kbd.state) xkb_state_unref(context->kbd.state);
-        context->kbd.keymap = xkb_map_ref(cdata->xkb.keymap);
-        context->kbd.state = xkb_state_new(cdata->xkb.keymap);
+        context->kbd.keymap = xkb_map_ref(e_comp_wl->xkb.keymap);
+        context->kbd.state = xkb_state_new(e_comp_wl->xkb.keymap);
         E_LIST_HANDLER_APPEND(context->kbd.handlers, ECORE_EVENT_KEY_DOWN,
                               _e_text_input_method_context_ecore_cb_key_down,
                               context);
@@ -184,13 +178,13 @@ _e_text_input_method_context_grab_set(E_Input_Method_Context *context, Eina_Bool
                               _e_text_input_method_context_ecore_cb_key_up,
                               context);
 
-        e_comp_grab_input(e_comp, 0, 1);
+        e_comp_grab_input(0, 1);
      }
    else
      {
         E_FREE_LIST(context->kbd.handlers, ecore_event_handler_del);
 
-        e_comp_ungrab_input(e_comp, 0, 1);
+        e_comp_ungrab_input(0, 1);
 
         if (context->kbd.keymap) xkb_map_unref(context->kbd.keymap);
         if (context->kbd.state) xkb_state_unref(context->kbd.state);
@@ -398,7 +392,7 @@ _e_text_input_method_context_cb_keyboard_grab(struct wl_client *client, struct w
    DBG("Input Method Context - grab keyboard %d", wl_resource_get_id(resource));
    E_Input_Method_Context *context  = wl_resource_get_user_data(resource);
    struct wl_resource *keyboard = NULL;
-   E_Comp_Data *cdata = NULL;
+
    if (!context)
      {
         wl_resource_post_error(resource,
@@ -415,13 +409,9 @@ _e_text_input_method_context_cb_keyboard_grab(struct wl_client *client, struct w
 
    wl_resource_set_implementation(keyboard, &_e_keyboard_grab_interface, context, _e_text_input_method_context_keyboard_grab_cb_keyboard_unbind);
 
-   if (context->model && context->model->cdata)
-     {
-        cdata = context->model->cdata;
-        /* send current keymap */
-        wl_keyboard_send_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
-                           cdata->xkb.fd, cdata->xkb.size);
-     }
+   /* send current keymap */
+   wl_keyboard_send_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
+                           e_comp_wl->xkb.fd, e_comp_wl->xkb.size);
 
    context->kbd.resource = keyboard;
 
@@ -736,7 +726,6 @@ _e_text_input_cb_deactivate(struct wl_client *client EINA_UNUSED, struct wl_reso
 {
    g_text_input = NULL;
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Comp_Data *cdata = wl_resource_get_user_data(seat);
    E_Input_Method *input_method = NULL;
 
    if (!text_input)
@@ -744,14 +733,6 @@ _e_text_input_cb_deactivate(struct wl_client *client EINA_UNUSED, struct wl_reso
         wl_resource_post_error(resource,
                                WL_DISPLAY_ERROR_INVALID_OBJECT,
                                "No Text Input For Resource");
-        return;
-     }
-
-   if (!cdata)
-     {
-        wl_resource_post_error(seat,
-                               WL_DISPLAY_ERROR_INVALID_OBJECT,
-                               "No Comp Data For Seat");
         return;
      }
 
@@ -1128,8 +1109,6 @@ _e_text_input_manager_cb_text_input_create(struct wl_client *client, struct wl_r
    wl_resource_set_implementation(text_input->resource,
                                   &_e_text_input_implementation,
                                   text_input, _e_text_input_cb_destroy);
-
-   text_input->cdata = text_input_mgr->cdata;
 }
 
 static const struct wl_text_input_manager_interface _e_text_input_manager_implementation = {
@@ -1211,19 +1190,16 @@ _e_text_input_method_destroy(void *data)
 }
 
 static Eina_Bool
-_e_text_input_method_create(E_Comp_Data *cdata)
+_e_text_input_method_create(void)
 {
-   if (!cdata) return EINA_FALSE;
-
    if (!(g_input_method = E_NEW(E_Input_Method, 1)))
      {
         ERR("Could not allocate space for Input_Method");
         return EINA_FALSE;
      }
 
-   g_input_method->cdata = cdata;
    g_input_method->global =
-      wl_global_create(cdata->wl.disp, &wl_input_method_interface, 1,
+      wl_global_create(e_comp_wl->wl.disp, &wl_input_method_interface, 1,
                        g_input_method, _e_text_cb_bind_input_method);
 
    if (!g_input_method->global)
@@ -1249,11 +1225,9 @@ _e_text_input_manager_destroy(void *data)
 }
 
 static Eina_Bool
-_e_text_input_manager_create(E_Comp_Data *cdata)
+_e_text_input_manager_create(void)
 {
    E_Text_Input_Mgr *text_input_mgr;
-
-   if (!cdata) return EINA_FALSE;
 
    if (!(text_input_mgr = E_NEW(E_Text_Input_Mgr, 1)))
      {
@@ -1261,9 +1235,8 @@ _e_text_input_manager_create(E_Comp_Data *cdata)
         return EINA_FALSE;
      }
 
-   text_input_mgr->cdata = cdata;
    text_input_mgr->global =
-      wl_global_create(cdata->wl.disp,
+      wl_global_create(e_comp_wl->wl.disp,
                        &wl_text_input_manager_interface, 1,
                        text_input_mgr, _e_text_cb_bind_text_input_manager);
 
@@ -1290,7 +1263,7 @@ _e_mod_text_input_shutdown(void)
      }
 }
 
-EAPI E_Module_Api e_modapi = { E_MODULE_API_VERSION, "Wl_Text_Input" };
+E_API E_Module_Api e_modapi = { E_MODULE_API_VERSION, "Wl_Text_Input" };
 
 static void
 _e_mod_eeze_udev_watch_cb(const char *text, Eeze_Udev_Event event, void *data, Eeze_Udev_Watch *watch)
@@ -1322,23 +1295,19 @@ _e_text_input_method_context_cb_client_resize(void *data EINA_UNUSED, int type E
    return ECORE_CALLBACK_PASS_ON;
 }
 
-EAPI void *
+E_API void *
 e_modapi_init(E_Module *m)
 {
-   E_Comp_Data *cdata = NULL;
-
-   if (!e_comp) return NULL;
-
-   if (!(cdata = e_comp->wl_comp_data)) return NULL;
+   if (!e_comp_wl) return NULL;
 
    // FIXME: create only one input method object per seat.
-   if (!_e_text_input_method_create(cdata))
+   if (!_e_text_input_method_create())
      return NULL;
 
-   if (!e_input_panel_init(cdata))
+   if (!e_input_panel_init())
      goto err;
 
-   if (!_e_text_input_manager_create(cdata))
+   if (!_e_text_input_manager_create())
      goto err;
 
    E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_RESIZE, _e_text_input_method_context_cb_client_resize, NULL);
@@ -1356,7 +1325,7 @@ err:
    return NULL;
 }
 
-EAPI int
+E_API int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
    E_FREE_LIST(handlers, ecore_event_handler_del);
@@ -1368,7 +1337,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
      }
    _e_mod_text_input_shutdown();
 
-   e_input_panel_shutdown(NULL);
+   e_input_panel_shutdown();
 
    return 1;
 }
