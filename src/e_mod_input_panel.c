@@ -167,7 +167,7 @@ _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
 
         evas_object_geometry_set(ec->frame, ec->x, ec->y, ec->w, ec->h);
         evas_object_show(ec->frame);
-        e_comp_object_damage(ec->frame, ec->x, ec->y, ec->w, ec->h);
+        e_comp_object_damage(ec->frame, 0, 0, ec->w, ec->h);
      }
    else
      evas_object_hide(ec->frame);
