@@ -703,9 +703,6 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
    g_disable_show_panel = EINA_FALSE;
 #endif
 
-   if (text_input->input_panel_visibile)
-     e_input_panel_visibility_change(EINA_TRUE);
-
    if (text_input->resource)
      wl_text_input_send_enter(text_input->resource, surface);
 
