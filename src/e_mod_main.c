@@ -752,6 +752,7 @@ static void
 _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
+   E_Input_Method *input_method = NULL;
 
    if (!text_input)
      {
@@ -763,6 +764,12 @@ _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct w
 
    if (g_disable_show_panel == EINA_TRUE)
      return;
+
+   if (g_input_method && g_input_method->resource)
+     input_method = wl_resource_get_user_data(g_input_method->resource);
+
+   if (input_method && input_method->resource && input_method->context && input_method->context->resource)
+     wl_input_method_send_show_input_panel(input_method->resource, input_method->context->resource);
 
    text_input->input_panel_visibile = EINA_TRUE;
 
@@ -777,6 +784,7 @@ static void
 _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
+   E_Input_Method *input_method = NULL;
 
    if (!text_input)
      {
@@ -793,6 +801,12 @@ _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct w
                                           WL_TEXT_INPUT_INPUT_PANEL_STATE_HIDE);
 
    e_input_panel_visibility_change(EINA_FALSE);
+
+   if (g_input_method && g_input_method->resource)
+     input_method = wl_resource_get_user_data(g_input_method->resource);
+
+   if (input_method && input_method->resource && input_method->context && input_method->context->resource)
+     wl_input_method_send_hide_input_panel(input_method->resource, input_method->context->resource);
 }
 
 static void
