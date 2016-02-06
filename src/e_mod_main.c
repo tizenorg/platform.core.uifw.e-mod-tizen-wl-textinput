@@ -19,6 +19,7 @@ struct _E_Text_Input
 
    Eina_List *input_methods;
    Eina_Bool input_panel_visibile;
+   uint32_t id;
 };
 
 struct _E_Text_Input_Mgr
@@ -71,6 +72,7 @@ static Eina_Bool g_disable_show_panel = EINA_FALSE;
 static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
 static Ecore_Event_Handler *ecore_key_down_handler = NULL;
 static Eina_List *handlers = NULL;
+static uint32_t g_text_input_count = 1;
 
 static void
 _e_text_input_method_context_keyboard_grab_keyboard_state_update(E_Input_Method_Context *context, uint32_t keycode, Eina_Bool pressed)
@@ -696,7 +698,7 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
         context->input_method = input_method;
         input_method->context = context;
 
-        wl_input_method_send_activate(input_method->resource, context->resource);
+        wl_input_method_send_activate(input_method->resource, context->resource, text_input->id);
      }
 
 #ifdef _TV
@@ -1116,6 +1118,7 @@ _e_text_input_manager_cb_text_input_create(struct wl_client *client, struct wl_r
         free(text_input);
         return;
      }
+   text_input->id = g_text_input_count++;
 
    wl_resource_set_implementation(text_input->resource,
                                   &_e_text_input_implementation,
