@@ -28,6 +28,11 @@ CFLAGS+=" -D_TV";
 CXXFLAGS+=" -D_TV";
 %endif
 
+%if "%{profile}" == "wearable"
+CFLAGS+=" -D_WEARABLE";
+CXXFLAGS+=" -D_WEARABLE";
+%endif
+
 %autogen
 %configure
 make %{?_smp_mflags}

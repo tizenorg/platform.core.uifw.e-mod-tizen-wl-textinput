@@ -636,7 +636,7 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
         if (text_input->resource)
           wl_text_input_send_leave(text_input->resource);
 
-#ifdef _TV
+#if defined(_TV) || defined(_WEARABLE)
         g_disable_show_panel = EINA_FALSE;
 #endif
      }
@@ -701,7 +701,7 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
         wl_input_method_send_activate(input_method->resource, context->resource, text_input->id);
      }
 
-#ifdef _TV
+#if defined(_TV) || defined(_WEARABLE)
    g_disable_show_panel = EINA_FALSE;
 #endif
 
