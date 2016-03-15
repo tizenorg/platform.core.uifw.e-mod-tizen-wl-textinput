@@ -1400,3 +1400,10 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
 
    return 1;
 }
+
+E_API int
+e_modapi_save(E_Module *m EINA_UNUSED)
+{
+   // do nothing
+   return 1;
+}
