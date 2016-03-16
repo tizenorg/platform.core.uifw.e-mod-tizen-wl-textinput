@@ -231,7 +231,7 @@ _e_input_panel_surface_map(struct wl_resource *resource)
         return;
      }
 
-   // NOTE: we need to set mapped, so that avoid showing evas_object and continue buffer's commit process.
+   /* NOTE: we need to set mapped, so that avoid showing evas_object and continue buffer's commit process. */
    if ((!ec->comp_data->mapped) && (e_pixmap_usable_get(ec->pixmap)))
      ec->comp_data->mapped = EINA_TRUE;
 }
@@ -324,7 +324,7 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
          wl_resource_create(client, &wl_input_panel_surface_interface, 1, id)))
      {
         wl_resource_post_no_memory(surface_resource);
-        // NOTE: Cleanup E_client.
+        /* NOTE: Cleanup E_client. */
         return;
      }
 
@@ -473,7 +473,7 @@ e_input_panel_init(void)
 
    if (!(g_input_panel = E_NEW(E_Input_Panel, 1)))
      {
-        // ERR("Failed to allocate space for E_Input_Panel");
+        /* ERR("Failed to allocate space for E_Input_Panel"); */
         return EINA_FALSE;
      }
 
@@ -485,7 +485,7 @@ e_input_panel_init(void)
      {
         free(g_input_panel);
         g_input_panel = NULL;
-        // ERR("Failed to create global of wl_input_panel");
+        /* ERR("Failed to create global of wl_input_panel"); */
         return EINA_FALSE;
      }
 

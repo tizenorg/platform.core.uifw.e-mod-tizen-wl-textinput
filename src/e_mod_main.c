@@ -636,7 +636,7 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
           {
              _e_text_input_method_context_grab_set(input_method->context,
                                                    EINA_FALSE);
-             // TODO: finish the grab of keyboard.
+             /* TODO: finish the grab of keyboard. */
              wl_input_method_send_deactivate(input_method->resource,
                                              input_method->context->resource);
           }
@@ -677,7 +677,7 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
    text_input = wl_resource_get_user_data(resource);
    g_text_input = text_input;
 
-   // FIXME: should get input_method object from seat.
+   /* FIXME: should get input_method object from seat. */
    input_method = wl_resource_get_user_data(g_input_method->resource);
    EINA_SAFETY_ON_NULL_GOTO(input_method, err);
 
@@ -754,7 +754,7 @@ _e_text_input_cb_deactivate(struct wl_client *client EINA_UNUSED, struct wl_reso
         return;
      }
 
-   // FIXME: should get input_method object from seat.
+   /* FIXME: should get input_method object from seat. */
    if (g_input_method && g_input_method->resource)
      input_method = wl_resource_get_user_data(g_input_method->resource);
 
@@ -915,7 +915,7 @@ _e_text_input_cb_cursor_rectangle_set(struct wl_client *client EINA_UNUSED, stru
         return;
      }
 
-   // TODO: issue event update input_panel
+   /* TODO: issue event update input_panel */
 }
 
 static void
@@ -1359,7 +1359,7 @@ e_modapi_init(E_Module *m)
 {
    if (!e_comp_wl) return NULL;
 
-   // FIXME: create only one input method object per seat.
+   /* FIXME: create only one input method object per seat. */
    if (!_e_text_input_method_create())
      return NULL;
 
@@ -1404,6 +1404,6 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
 E_API int
 e_modapi_save(E_Module *m EINA_UNUSED)
 {
-   // do nothing
+   /* do nothing */
    return 1;
 }
