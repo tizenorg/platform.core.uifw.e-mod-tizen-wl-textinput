@@ -165,12 +165,16 @@ _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
      {
         _e_input_panel_position_set(ec, ec->client.w, ec->client.h);
 
+        ec->visible = EINA_TRUE;
         evas_object_geometry_set(ec->frame, ec->x, ec->y, ec->w, ec->h);
         evas_object_show(ec->frame);
         e_comp_object_damage(ec->frame, 0, 0, ec->w, ec->h);
      }
    else
-     evas_object_hide(ec->frame);
+     {
+        ec->visible = EINA_FALSE;
+        evas_object_hide(ec->frame);
+     }
 }
 
 static void
