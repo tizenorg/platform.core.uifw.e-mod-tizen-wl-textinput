@@ -537,6 +537,35 @@ _e_text_input_method_context_cb_input_panel_data_update(struct wl_client *client
                                          serial, data, length);
 }
 
+static void
+_e_text_input_method_context_cb_hide_input_panel(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t serial)
+{
+   E_Text_Input *text_input = g_text_input;
+   E_Input_Method *input_method = NULL;
+
+   if (!text_input)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Text Input For Resource");
+        return;
+     }
+
+   text_input->input_panel_visibile = EINA_FALSE;
+
+   if (text_input->resource)
+     wl_text_input_send_input_panel_state(text_input->resource,
+                                          WL_TEXT_INPUT_INPUT_PANEL_STATE_HIDE);
+
+   e_input_panel_visibility_change(EINA_FALSE);
+
+   if (g_input_method && g_input_method->resource)
+     input_method = wl_resource_get_user_data(g_input_method->resource);
+
+   if (input_method && input_method->resource && input_method->context && input_method->context->resource)
+     wl_input_method_send_hide_input_panel(input_method->resource, input_method->context->resource);
+}
+
 static const struct wl_input_method_context_interface _e_text_input_method_context_implementation = {
      _e_text_input_method_context_cb_destroy,
      _e_text_input_method_context_cb_string_commit,
@@ -554,7 +583,8 @@ static const struct wl_input_method_context_interface _e_text_input_method_conte
      _e_text_input_method_context_cb_text_direction,
      _e_text_input_method_context_cb_selection_region,
      _e_text_input_method_context_cb_private_command,
-     _e_text_input_method_context_cb_input_panel_data_update
+     _e_text_input_method_context_cb_input_panel_data_update,
+     _e_text_input_method_context_cb_hide_input_panel
 };
 
 static void
