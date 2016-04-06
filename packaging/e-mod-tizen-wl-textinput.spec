@@ -1,7 +1,7 @@
 %bcond_with wayland
 Name:       e-mod-tizen-wl-textinput
 Summary:    The Enlightenment WM Wayland Text Input Module for Tizen
-Version:    0.1.30
+Version:    0.1.31
 Release:    1
 Group:      Graphics & UI Framework/Other
 License:    BSD-2-Clause and MIT
