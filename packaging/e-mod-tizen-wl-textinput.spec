@@ -33,9 +33,6 @@ CXXFLAGS+=" -D_TV";
 make %{?_smp_mflags}
 
 %install
-# for license notification
-mkdir -p %{buildroot}/usr/share/license
-cp -a %{_builddir}/%{buildsubdir}/COPYING %{buildroot}/usr/share/license/%{name}
 
 # install
 %make_install
@@ -43,6 +40,6 @@ cp -a %{_builddir}/%{buildsubdir}/COPYING %{buildroot}/usr/share/license/%{name}
 %files
 %defattr(-,root,root,-)
 %{_libdir}/enlightenment/modules/e-mod-tizen-wl-textinput
-/usr/share/license/%{name}
+%license COPYING
 
 %define _unpackaged_files_terminate_build 0
