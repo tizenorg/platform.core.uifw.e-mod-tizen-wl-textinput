@@ -20,6 +20,8 @@ struct _E_Input_Panel_Surface
    E_Input_Panel *input_panel;
    E_Client *ec;
 
+   Ecore_Event_Handler *rot_handler;
+
    Eina_Bool panel;
    Eina_Bool showing;
 };
@@ -112,6 +114,7 @@ _e_input_panel_surface_resource_destroy(struct wl_resource *resource)
      }
 
    input_panel->surfaces = eina_list_remove(input_panel->surfaces, ips);
+   E_FREE_FUNC(ips->rot_handler, ecore_event_handler_del);
    free(ips);
 }
 
@@ -280,6 +283,24 @@ _e_input_panel_surface_unmap(struct wl_resource *resource)
      }
 }
 
+static Eina_Bool
+_e_input_panel_client_cb_rotation_change_end(void *data, int type, void *event)
+{
+   E_Client *ec;
+   E_Input_Panel_Surface *ips = data;
+   E_Event_Client_Rotation_Change_End *ev = event;
+
+   ec = ev->ec;
+   if (ec != ips->ec)
+     goto end;
+
+   if (ips->showing)
+     _e_input_panel_position_set(ec, ec->client.w, ec->client.h);
+
+end:
+   return ECORE_CALLBACK_PASS_ON;
+}
+
 static void
 _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *resource, uint32_t id, struct wl_resource *surface_resource)
 {
@@ -370,6 +391,10 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
    wl_resource_set_implementation(cdata->shell.surface,
                                   &_e_input_panel_surface_implementation,
                                   ips, _e_input_panel_surface_resource_destroy);
+
+   ips->rot_handler =
+      ecore_event_handler_add(E_EVENT_CLIENT_ROTATION_CHANGE_END,
+                              _e_input_panel_client_cb_rotation_change_end, ips);
 }
 
 
