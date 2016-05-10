@@ -11,6 +11,7 @@ BuildRequires: pkgconfig(text-server)
 BuildRequires: pkgconfig(input-method-server)
 BuildRequires: pkgconfig(enlightenment)
 BuildRequires: pkgconfig(eeze)
+BuildRequires: pkgconfig(vconf)
 %if !%{with wayland}
 ExclusiveArch:
 %endif
