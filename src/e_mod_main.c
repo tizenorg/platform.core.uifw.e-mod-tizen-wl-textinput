@@ -3,6 +3,8 @@
 #include "e_mod_main.h"
 #include <text-server-protocol.h>
 #include <input-method-server-protocol.h>
+#include <vconf.h>
+#include <vconf-keys.h>
 #include "Eeze.h"
 
 static Eina_Bool _e_text_input_method_context_cb_client_resize(void *data EINA_UNUSED, int type, void *event);
@@ -73,6 +75,44 @@ static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
 static Ecore_Event_Handler *ecore_key_down_handler = NULL;
 static Eina_List *handlers = NULL;
 static uint32_t g_text_input_count = 1;
+
+static void
+_input_panel_hide(struct wl_resource *resource)
+{
+   E_Text_Input *text_input = wl_resource_get_user_data(resource);
+   E_Input_Method *input_method = NULL;
+
+   if (!text_input)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Text Input For Resource");
+        return;
+     }
+
+   text_input->input_panel_visibile = EINA_FALSE;
+
+   if (text_input->resource)
+     wl_text_input_send_input_panel_state(text_input->resource,
+                                          WL_TEXT_INPUT_INPUT_PANEL_STATE_HIDE);
+
+   e_input_panel_visibility_change(EINA_FALSE);
+
+   if (g_input_method && g_input_method->resource)
+     input_method = wl_resource_get_user_data(g_input_method->resource);
+
+   if (input_method && input_method->resource && input_method->context && input_method->context->resource)
+     wl_input_method_send_hide_input_panel(input_method->resource, input_method->context->resource);
+}
+
+static void
+_keyboard_mode_changed_cb(keynode_t *key, void* data)
+{
+    int val = 0;
+    if (vconf_get_bool (VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, &val) == 0 && val == 0) {
+        g_disable_show_panel = EINA_FALSE;
+    }
+}
 
 static void
 _e_text_input_method_context_keyboard_grab_keyboard_state_update(E_Input_Method_Context *context, uint32_t keycode, Eina_Bool pressed)
@@ -402,6 +442,7 @@ _e_text_input_method_context_cb_keyboard_grab(struct wl_client *client, struct w
                                "No Input Method Context For Resource");
         return;
      }
+
    keyboard = wl_resource_create(client, &wl_keyboard_interface, 1, id);
    if (!keyboard)
      {
@@ -625,7 +666,7 @@ static Eina_Bool is_number_key(const char *str)
       }
     else
       return EINA_TRUE;
- }
+}
 
 static Eina_Bool
 _e_mod_ecore_key_down_cb(void *data, int type, void *event)
@@ -651,8 +692,9 @@ _e_mod_ecore_key_down_cb(void *data, int type, void *event)
        is_number_key(ev->string))
      return ECORE_CALLBACK_PASS_ON;
 
+   _input_panel_hide(g_text_input->resource);
+
    g_disable_show_panel = EINA_TRUE;
-   e_input_panel_visibility_change(EINA_FALSE);
 
    return ECORE_CALLBACK_PASS_ON;
 }
@@ -670,6 +712,7 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
              wl_input_method_send_deactivate(input_method->resource,
                                              input_method->context->resource);
           }
+
         if (ecore_key_down_handler)
           {
              ecore_event_handler_del(ecore_key_down_handler);
@@ -769,6 +812,7 @@ err:
                             WL_DISPLAY_ERROR_INVALID_OBJECT,
                             "No Comp Data For Seat");
 }
+
 static void
 _e_text_input_cb_deactivate(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, struct wl_resource *seat)
 {
@@ -834,30 +878,7 @@ _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct w
 static void
 _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
-   E_Text_Input *text_input = wl_resource_get_user_data(resource);
-   E_Input_Method *input_method = NULL;
-
-   if (!text_input)
-     {
-        wl_resource_post_error(resource,
-                               WL_DISPLAY_ERROR_INVALID_OBJECT,
-                               "No Text Input For Resource");
-        return;
-     }
-
-   text_input->input_panel_visibile = EINA_FALSE;
-
-   if (text_input->resource)
-     wl_text_input_send_input_panel_state(text_input->resource,
-                                          WL_TEXT_INPUT_INPUT_PANEL_STATE_HIDE);
-
-   e_input_panel_visibility_change(EINA_FALSE);
-
-   if (g_input_method && g_input_method->resource)
-     input_method = wl_resource_get_user_data(g_input_method->resource);
-
-   if (input_method && input_method->resource && input_method->context && input_method->context->resource)
-     wl_input_method_send_hide_input_panel(input_method->resource, input_method->context->resource);
+   _input_panel_hide(resource);
 }
 
 static void
@@ -1427,6 +1448,8 @@ e_modapi_init(E_Module *m)
 
    E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_RESIZE, _e_text_input_method_context_cb_client_resize, NULL);
 
+   vconf_notify_key_changed (VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, _keyboard_mode_changed_cb, NULL);
+
    eeze_udev_watch_hander = eeze_udev_watch_add(EEZE_UDEV_TYPE_KEYBOARD,
                                                 EEZE_UDEV_EVENT_REMOVE,
                                                 _e_mod_eeze_udev_watch_cb,
@@ -1444,6 +1467,8 @@ E_API int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
    E_FREE_LIST(handlers, ecore_event_handler_del);
+
+   vconf_ignore_key_changed (VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, _keyboard_mode_changed_cb);
 
    if (eeze_udev_watch_hander)
      {
