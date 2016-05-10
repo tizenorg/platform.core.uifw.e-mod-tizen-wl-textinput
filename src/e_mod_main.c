@@ -566,6 +566,41 @@ _e_text_input_method_context_cb_hide_input_panel(struct wl_client *client EINA_U
      wl_input_method_send_hide_input_panel(input_method->resource, input_method->context->resource);
 }
 
+static void
+_e_text_input_method_context_cb_get_selection_text(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t serial)
+{
+   E_Input_Method_Context *context = wl_resource_get_user_data(resource);
+
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+
+   if ((context->model) && (context->model->resource))
+     wl_text_input_send_get_selection_text(context->model->resource, serial);
+}
+
+static void
+_e_text_input_method_context_cb_get_surrounding_text(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t serial,
+                                                     uint32_t maxlen_before, uint32_t maxlen_after)
+{
+   E_Input_Method_Context *context = wl_resource_get_user_data(resource);
+
+   if (!context)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Input Method Context For Resource");
+        return;
+     }
+
+   if ((context->model) && (context->model->resource))
+     wl_text_input_send_get_surrounding_text(context->model->resource, serial, maxlen_before, maxlen_after);
+}
+
 static const struct wl_input_method_context_interface _e_text_input_method_context_implementation = {
      _e_text_input_method_context_cb_destroy,
      _e_text_input_method_context_cb_string_commit,
@@ -584,7 +619,9 @@ static const struct wl_input_method_context_interface _e_text_input_method_conte
      _e_text_input_method_context_cb_selection_region,
      _e_text_input_method_context_cb_private_command,
      _e_text_input_method_context_cb_input_panel_data_update,
-     _e_text_input_method_context_cb_hide_input_panel
+     _e_text_input_method_context_cb_hide_input_panel,
+     _e_text_input_method_context_cb_get_selection_text,
+     _e_text_input_method_context_cb_get_surrounding_text,
 };
 
 static void
@@ -884,7 +921,7 @@ _e_text_input_cb_reset(struct wl_client *client EINA_UNUSED, struct wl_resource 
 }
 
 static void
-_e_text_input_cb_surrounding_text_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, const char *text, uint32_t cursor, uint32_t anchor)
+_e_text_input_cb_surrounding_text_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t serial, const char *text, uint32_t cursor_position)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
    E_Input_Method *input_method = NULL;
@@ -903,7 +940,7 @@ _e_text_input_cb_surrounding_text_set(struct wl_client *client EINA_UNUSED, stru
         if (!input_method || !input_method->context) continue;
         if (input_method->context->resource)
           wl_input_method_context_send_surrounding_text(input_method->context->resource,
-                                                        text, cursor, anchor);
+                                                        serial, text, cursor_position);
      }
 }
 
@@ -1123,7 +1160,7 @@ _e_text_input_cb_bidi_direction_set(struct wl_client *client EINA_UNUSED, struct
 }
 
 static void
-_e_text_input_cb_selection_text_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, const char *text)
+_e_text_input_cb_selection_text_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource,  uint32_t serial, const char *text)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
    E_Input_Method *input_method = NULL;
@@ -1143,7 +1180,31 @@ _e_text_input_cb_selection_text_set(struct wl_client *client EINA_UNUSED, struct
 
         if (input_method->context->resource)
           wl_input_method_context_send_selection_text(input_method->context->resource,
-                                                      text);
+                                                      serial, text);
+     }
+}
+
+static void
+_e_text_input_cb_cursor_position_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource,  uint32_t cursor_position)
+{
+   E_Text_Input *text_input = wl_resource_get_user_data(resource);
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
+
+   if (!text_input)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Text Input For Resource");
+        return;
+     }
+
+   EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
+     {
+        if (!input_method || !input_method->context) continue;
+
+        if (input_method->context->resource)
+          wl_input_method_context_send_cursor_position(input_method->context->resource, cursor_position);
      }
 }
 
@@ -1163,7 +1224,8 @@ static const struct wl_text_input_interface _e_text_input_implementation = {
      _e_text_input_cb_return_key_disabled_set,
      _e_text_input_cb_input_panel_data_set,
      _e_text_input_cb_bidi_direction_set,
-     _e_text_input_cb_selection_text_set
+     _e_text_input_cb_selection_text_set,
+     _e_text_input_cb_cursor_position_set
 };
 
 static void
