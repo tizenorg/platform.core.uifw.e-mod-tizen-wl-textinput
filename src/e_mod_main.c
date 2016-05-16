@@ -800,6 +800,41 @@ _e_text_input_cb_deactivate(struct wl_client *client EINA_UNUSED, struct wl_reso
 }
 
 static void
+_e_text_input_method_create_context(struct wl_client *client EINA_UNUSED, E_Input_Method *input_method, E_Text_Input *text_input)
+{
+
+    E_Input_Method_Context *context = NULL;
+
+    g_text_input = text_input;
+    input_method->model = text_input;
+    text_input->input_methods = eina_list_append(text_input->input_methods, input_method);
+
+    if (input_method && input_method->resource)
+    {
+        if (!(context = E_NEW(E_Input_Method_Context, 1)))
+        {
+            wl_client_post_no_memory(client);
+            ERR("Could not allocate space for Input_Method_Context");
+            return;
+        }
+
+        context->resource =
+            wl_resource_create(wl_resource_get_client(input_method->resource),
+                               &wl_input_method_context_interface, 1, 0);
+
+        wl_resource_set_implementation(context->resource,
+                                       &_e_text_input_method_context_implementation,
+                                       context, _e_text_input_method_context_cb_resource_destroy);
+
+        context->model = text_input;
+        context->input_method = input_method;
+        input_method->context = context;
+
+        wl_input_method_send_activate(input_method->resource, context->resource, text_input->id);
+    }
+}
+
+static void
 _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct wl_resource *resource)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
@@ -819,6 +854,16 @@ _e_text_input_cb_input_panel_show(struct wl_client *client EINA_UNUSED, struct w
    if (g_input_method && g_input_method->resource)
      input_method = wl_resource_get_user_data(g_input_method->resource);
 
+    /*
+      If input_method->context doesn't exist, create context struct to send input_panel_show event to Input Method(IME) correctly.
+      Because input_panel_show event can be called before focus_in(activate) by application.
+      And Input Method(IME) should know the state of their own input_panel to manage their resource when the input_panel is shown.
+    */
+    if (input_method && (!input_method->context || !input_method->context->resource))
+    {
+        _e_text_input_method_create_context(client, input_method, text_input);
+    }
+
    if (input_method && input_method->resource && input_method->context && input_method->context->resource)
      wl_input_method_send_show_input_panel(input_method->resource, input_method->context->resource);
 
@@ -836,6 +881,7 @@ _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct w
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
    E_Input_Method *input_method = NULL;
+   Eina_Bool _context_created = EINA_FALSE;
 
    if (!text_input)
      {
@@ -856,8 +902,23 @@ _e_text_input_cb_input_panel_hide(struct wl_client *client EINA_UNUSED, struct w
    if (g_input_method && g_input_method->resource)
      input_method = wl_resource_get_user_data(g_input_method->resource);
 
+    /*
+      If input_method->context is already deleted, create context struct again to send input_panel_hide event to Input Method(IME) correctly.
+      Because input_panel_hide event can be called after focus_out(deactivate) by application.
+      And Input Method(IME) should know the state of their own input_panel to manage their resource when the input_panel is hidden.
+    */
+    if (input_method && (!input_method->context || !input_method->context->resource))
+    {
+        _e_text_input_method_create_context(client, input_method, text_input);
+        _context_created = EINA_TRUE;
+    }
+
    if (input_method && input_method->resource && input_method->context && input_method->context->resource)
      wl_input_method_send_hide_input_panel(input_method->resource, input_method->context->resource);
+
+    if (_context_created)
+        _e_text_input_deactivate(text_input, input_method);
+
 }
 
 static void
