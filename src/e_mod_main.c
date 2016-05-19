@@ -1255,6 +1255,31 @@ _e_text_input_cb_cursor_position_set(struct wl_client *client EINA_UNUSED, struc
      }
 }
 
+static void
+_e_text_input_cb_process_input_device_event(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t type, const char *data, uint32_t length)
+{
+   E_Text_Input *text_input = wl_resource_get_user_data(resource);
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
+
+   if (!text_input)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Text Input For Resource");
+        return;
+     }
+
+   EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
+     {
+        if (!input_method || !input_method->context) continue;
+
+        if (input_method->context->resource)
+          wl_input_method_context_send_process_input_device_event(input_method->context->resource,
+                                                                  type, data, length);
+     }
+}
+
 static const struct wl_text_input_interface _e_text_input_implementation = {
      _e_text_input_cb_activate,
      _e_text_input_cb_deactivate,
@@ -1270,7 +1295,8 @@ static const struct wl_text_input_interface _e_text_input_implementation = {
      _e_text_input_cb_return_key_disabled_set,
      _e_text_input_cb_input_panel_data_set,
      _e_text_input_cb_bidi_direction_set,
-     _e_text_input_cb_cursor_position_set
+     _e_text_input_cb_cursor_position_set,
+     _e_text_input_cb_process_input_device_event
 };
 
 static void
