@@ -804,37 +804,36 @@ _e_text_input_method_create_context(struct wl_client *client EINA_UNUSED, E_Inpu
 {
    E_Input_Method_Context *context = NULL;
 
+   EINA_SAFETY_ON_NULL_RETURN_VAL(input_method, EINA_FALSE);
+   EINA_SAFETY_ON_NULL_RETURN_VAL(input_method->resource, EINA_FALSE);
+   EINA_SAFETY_ON_NULL_RETURN_VAL(text_input, EINA_FALSE);
+
    g_text_input = text_input;
    input_method->model = text_input;
    text_input->input_methods = eina_list_append(text_input->input_methods, input_method);
 
-   if (input_method && input_method->resource)
+   if (!(context = E_NEW(E_Input_Method_Context, 1)))
      {
-        if (!(context = E_NEW(E_Input_Method_Context, 1)))
-          {
-             wl_client_post_no_memory(client);
-             ERR("Could not allocate space for Input_Method_Context");
-             return EINA_FALSE;
-          }
-
-        context->resource =
-           wl_resource_create(wl_resource_get_client(input_method->resource),
-                              &wl_input_method_context_interface, 1, 0);
-
-        wl_resource_set_implementation(context->resource,
-                                       &_e_text_input_method_context_implementation,
-                                       context, _e_text_input_method_context_cb_resource_destroy);
-
-        context->model = text_input;
-        context->input_method = input_method;
-        input_method->context = context;
-
-        wl_input_method_send_activate(input_method->resource, context->resource, text_input->id);
-
-        return EINA_TRUE;
+        wl_client_post_no_memory(client);
+        ERR("Could not allocate space for Input_Method_Context");
+        return EINA_FALSE;
      }
-   else
-     return EINA_FALSE;
+
+   context->resource =
+      wl_resource_create(wl_resource_get_client(input_method->resource),
+                         &wl_input_method_context_interface, 1, 0);
+
+   wl_resource_set_implementation(context->resource,
+                                  &_e_text_input_method_context_implementation,
+                                  context, _e_text_input_method_context_cb_resource_destroy);
+
+   context->model = text_input;
+   context->input_method = input_method;
+   input_method->context = context;
+
+   wl_input_method_send_activate(input_method->resource, context->resource, text_input->id);
+
+   return EINA_TRUE;
 }
 
 static void
