@@ -812,6 +812,11 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
 
 #ifdef _TV
    g_disable_show_panel = EINA_FALSE;
+
+   /* switch to S/W keyboard mode */
+   int val = 0;
+   if (vconf_get_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, &val) == 0 && val != 0)
+     vconf_set_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, 0);
 #endif
 
    if (text_input->resource)
