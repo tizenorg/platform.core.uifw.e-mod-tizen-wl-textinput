@@ -438,7 +438,7 @@ _e_text_input_method_context_keyboard_grab_cb_keyboard_unbind(struct wl_resource
         return;
      }
 
-   _e_text_input_method_context_grab_set(context, EINA_FALSE);
+   //_e_text_input_method_context_grab_set(context, EINA_FALSE);
 
    context->kbd.resource = NULL;
 }
@@ -473,7 +473,7 @@ _e_text_input_method_context_cb_keyboard_grab(struct wl_client *client, struct w
 
    context->kbd.resource = keyboard;
 
-   _e_text_input_method_context_grab_set(context, EINA_TRUE);
+   //_e_text_input_method_context_grab_set(context, EINA_TRUE);
 }
 
 static void
@@ -622,6 +622,27 @@ _e_text_input_method_context_cb_hide_input_panel(struct wl_client *client EINA_U
      wl_input_method_send_hide_input_panel(input_method->resource, input_method->context->resource);
 }
 
+static void
+_e_text_input_method_context_cb_filter_key_event_done(struct wl_client *client EINA_UNUSED, struct wl_resource *resource,
+                                                 uint32_t serial, uint32_t state)
+{
+    E_Input_Method_Context *context = wl_resource_get_user_data(resource);
+    
+    if (!context)
+      {
+         wl_resource_post_error(resource,
+                                WL_DISPLAY_ERROR_INVALID_OBJECT,
+                                "No Input Method Context For Resource");
+         return;
+      }
+    
+    if ((context->model) && (context->model->resource))
+      wl_text_input_send_filter_key_event_done(context->model->resource,
+                                          serial, state);
+
+}
+
+
 static const struct wl_input_method_context_interface _e_text_input_method_context_implementation = {
      _e_text_input_method_context_cb_destroy,
      _e_text_input_method_context_cb_string_commit,
@@ -640,7 +661,8 @@ static const struct wl_input_method_context_interface _e_text_input_method_conte
      _e_text_input_method_context_cb_selection_region,
      _e_text_input_method_context_cb_private_command,
      _e_text_input_method_context_cb_input_panel_data_update,
-     _e_text_input_method_context_cb_hide_input_panel
+     _e_text_input_method_context_cb_hide_input_panel,
+     _e_text_input_method_context_cb_filter_key_event_done
 };
 
 static void
@@ -722,8 +744,8 @@ _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method)
      {
         if ((input_method->context) && (input_method->resource))
           {
-             _e_text_input_method_context_grab_set(input_method->context,
-                                                   EINA_FALSE);
+             //_e_text_input_method_context_grab_set(input_method->context,
+             //                                      EINA_FALSE);
              /* TODO: finish the grab of keyboard. */
              wl_input_method_send_deactivate(input_method->resource,
                                              input_method->context->resource);
@@ -1237,6 +1259,33 @@ _e_text_input_cb_selection_text_set(struct wl_client *client EINA_UNUSED, struct
      }
 }
 
+static void
+_e_text_input_cb_filter_key_event(struct wl_client *client EINA_UNUSED, struct wl_resource *resource,
+                                  uint32_t serial, uint32_t time, uint32_t key, uint32_t state)
+{
+   E_Text_Input *text_input = wl_resource_get_user_data(resource);
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
+
+   if (!text_input)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Text Input For Resource");
+        return;
+     }
+
+
+   /* FIXME: should get input_method object from seat. */
+   if (g_input_method && g_input_method->resource)
+     input_method = wl_resource_get_user_data(g_input_method->resource);
+
+   if (input_method && input_method->context && input_method->context->resource)
+     wl_input_method_context_send_filter_key_event(input_method->context->resource,
+                                                   serial, time, key, state);
+}
+
+
 static const struct wl_text_input_interface _e_text_input_implementation = {
      _e_text_input_cb_activate,
      _e_text_input_cb_deactivate,
@@ -1253,7 +1302,8 @@ static const struct wl_text_input_interface _e_text_input_implementation = {
      _e_text_input_cb_return_key_disabled_set,
      _e_text_input_cb_input_panel_data_set,
      _e_text_input_cb_bidi_direction_set,
-     _e_text_input_cb_selection_text_set
+     _e_text_input_cb_selection_text_set,
+     _e_text_input_cb_filter_key_event
 };
 
 static void
