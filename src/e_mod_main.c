@@ -1511,6 +1511,9 @@ e_modapi_init(E_Module *m)
 {
    if (!e_comp_wl) return NULL;
 
+   if (!wti_log_init())
+     return NULL;
+
    /* FIXME: create only one input method object per seat. */
    if (!_e_text_input_method_create())
      return NULL;
@@ -1553,6 +1556,8 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    _e_mod_text_input_shutdown();
 
    e_input_panel_shutdown();
+
+   wti_log_shutdown();
 
    return 1;
 }
