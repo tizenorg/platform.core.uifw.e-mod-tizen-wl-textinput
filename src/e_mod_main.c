@@ -67,6 +67,14 @@ struct _E_Mod_Text_Input_Shutdown_Cb
    void *data;
 };
 
+struct _E_Input_Method_Keymap_Info
+{
+   const char *language;
+   const char *rules;
+   const char *models;
+   const char *layout;
+};
+
 static E_Input_Method *g_input_method = NULL;
 static E_Text_Input *g_text_input = NULL;
 static struct wl_client *g_client = NULL;
@@ -76,6 +84,13 @@ static Eeze_Udev_Watch *eeze_udev_watch_hander = NULL;
 static Ecore_Event_Handler *ecore_key_down_handler = NULL;
 static Eina_List *handlers = NULL;
 static uint32_t g_text_input_count = 1;
+static uint32_t g_keymap_index = 0;
+static Eina_Bool g_keyboard_mode_engligh = EINA_TRUE;
+
+static struct _E_Input_Method_Keymap_Info g_keymap_info[] = {
+   {"en_US", "evdev", "pc105", "us"},
+   {"ru_RU", "evdev", "pc105", "ru"},
+};
 
 static void _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method);
 static Eina_Bool _e_text_input_method_create_context(struct wl_client *client, E_Input_Method *input_method, E_Text_Input *text_input);
@@ -124,9 +139,30 @@ _input_panel_hide(struct wl_client *client, struct wl_resource *resource)
 static void
 _keyboard_mode_changed_cb(keynode_t *key, void* data)
 {
-    int val = 0;
-    if (vconf_get_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, &val) == 0 && val == 0)
-      g_disable_show_panel = EINA_FALSE;
+   int val = 0;
+   if (vconf_get_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, &val) == 0 && val == 0)
+     g_disable_show_panel = EINA_FALSE;
+}
+
+static void
+_display_language_changed_cb(keynode_t *key, void* data)
+{
+   int loop;
+   const char *language = vconf_get_str(VCONFKEY_LANGSET);
+
+   /* Just in case we did not find any matching language string */
+   g_keymap_index = 0;
+   for (loop = 0; loop < sizeof(g_keymap_info) / sizeof(struct _E_Input_Method_Keymap_Info); loop++)
+     {
+        if (strncmp(language, g_keymap_info[loop].language, strlen(g_keymap_info[loop].language)) == 0)
+          {
+             g_keymap_index = loop;
+          }
+     }
+   /* Resetting the H/W keyboard language mode to English, would be more appropriate when the
+    * display language gets changed, such as the cases like changing from French to Russian, for example */
+   e_comp_wl_input_keymap_set(g_keymap_info[0].rules, g_keymap_info[0].models, g_keymap_info[0].layout, NULL, NULL, NULL, NULL);
+   g_keyboard_mode_engligh = EINA_TRUE;
 }
 
 static void
@@ -190,12 +226,37 @@ _e_text_input_method_context_key_send(E_Input_Method_Context *context, unsigned 
 }
 
 static Eina_Bool
+_e_text_input_method_context_filter_hotkeys(E_Input_Method_Context *context, Ecore_Event_Key *ev)
+{
+   const char *keyname_space = "space";
+
+   if (!ev) return EINA_FALSE;
+   if (!context) return EINA_FALSE;
+
+   if ((strncmp(ev->keyname, keyname_space, strlen(keyname_space)) == 0) && (ev->modifiers & ECORE_EVENT_MODIFIER_SHIFT))
+     {
+        int keymap_index;
+        keymap_index = g_keyboard_mode_engligh ? g_keymap_index : 0;
+        e_comp_wl_input_keymap_set(g_keymap_info[keymap_index].rules, g_keymap_info[keymap_index].models, g_keymap_info[keymap_index].layout, NULL, NULL, NULL, NULL);
+        wl_keyboard_send_keymap(context->kbd.resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
+            e_comp_wl->xkb.fd, e_comp_wl->xkb.size);
+        g_keyboard_mode_engligh = !g_keyboard_mode_engligh;
+
+        return EINA_TRUE;
+     }
+   return EINA_FALSE;
+}
+
+static Eina_Bool
 _e_text_input_method_context_ecore_cb_key_down(void *data, int ev_type EINA_UNUSED, Ecore_Event_Key *ev)
 {
    E_Input_Method_Context *context = data;
 
-   _e_text_input_method_context_key_send(context, ev->keycode, ev->timestamp,
-                                         WL_KEYBOARD_KEY_STATE_PRESSED);
+   if (!_e_text_input_method_context_filter_hotkeys(context, ev))
+     {
+        _e_text_input_method_context_key_send(context, ev->keycode, ev->timestamp,
+                                              WL_KEYBOARD_KEY_STATE_PRESSED);
+     }
 
    return ECORE_CALLBACK_RENEW;
 }
@@ -1527,6 +1588,10 @@ e_modapi_init(E_Module *m)
    E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_RESIZE, _e_text_input_method_context_cb_client_resize, NULL);
 
    vconf_notify_key_changed(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, _keyboard_mode_changed_cb, NULL);
+   vconf_notify_key_changed(VCONFKEY_LANGSET, _display_language_changed_cb, NULL);
+
+   /* Find the current display language when initializing */
+   _display_language_changed_cb(NULL, NULL);
 
    eeze_udev_watch_hander = eeze_udev_watch_add(EEZE_UDEV_TYPE_KEYBOARD,
                                                 EEZE_UDEV_EVENT_REMOVE,
@@ -1547,6 +1612,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    E_FREE_LIST(handlers, ecore_event_handler_del);
 
    vconf_ignore_key_changed(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, _keyboard_mode_changed_cb);
+   vconf_ignore_key_changed(VCONFKEY_LANGSET, _display_language_changed_cb);
 
    if (eeze_udev_watch_hander)
      {
