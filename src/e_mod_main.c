@@ -159,9 +159,12 @@ _display_language_changed_cb(keynode_t *key, void* data)
              g_keymap_index = loop;
           }
      }
+   /* We do not want to change the current keymap related behavior in TV profile for now */
+#ifndef _TV
    /* Resetting the H/W keyboard language mode to English, would be more appropriate when the
     * display language gets changed, such as the cases like changing from French to Russian, for example */
    e_comp_wl_input_keymap_set(g_keymap_info[0].rules, g_keymap_info[0].models, g_keymap_info[0].layout, NULL, NULL, NULL, NULL);
+#endif
    g_keyboard_mode_engligh = EINA_TRUE;
 }
 
@@ -233,6 +236,8 @@ _e_text_input_method_context_filter_hotkeys(E_Input_Method_Context *context, Eco
    if (!ev) return EINA_FALSE;
    if (!context) return EINA_FALSE;
 
+   /* We do not want to change the current keymap related behavior in TV profile for now */
+#ifndef _TV
    if ((strncmp(ev->keyname, keyname_space, strlen(keyname_space)) == 0) && (ev->modifiers & ECORE_EVENT_MODIFIER_SHIFT))
      {
         int keymap_index;
@@ -244,6 +249,7 @@ _e_text_input_method_context_filter_hotkeys(E_Input_Method_Context *context, Eco
 
         return EINA_TRUE;
      }
+#endif
    return EINA_FALSE;
 }
 
