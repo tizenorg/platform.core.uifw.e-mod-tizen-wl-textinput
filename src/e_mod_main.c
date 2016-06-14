@@ -909,9 +909,11 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
            wl_resource_create(wl_resource_get_client(input_method->resource),
                               &wl_input_method_context_interface, 1, 0);
 
-        wl_resource_set_implementation(context->resource,
-                                       &_e_text_input_method_context_implementation,
-                                       context, _e_text_input_method_context_cb_resource_destroy);
+
+        if (context->resource)
+          wl_resource_set_implementation(context->resource,
+                                         &_e_text_input_method_context_implementation,
+                                         context, _e_text_input_method_context_cb_resource_destroy);
 
         context->model = text_input;
         context->input_method = input_method;
@@ -1001,9 +1003,10 @@ _e_text_input_method_create_context(struct wl_client *client, E_Input_Method *in
       wl_resource_create(wl_resource_get_client(input_method->resource),
                          &wl_input_method_context_interface, 1, 0);
 
-   wl_resource_set_implementation(context->resource,
-                                  &_e_text_input_method_context_implementation,
-                                  context, _e_text_input_method_context_cb_resource_destroy);
+   if (context->resource)
+     wl_resource_set_implementation(context->resource,
+                                    &_e_text_input_method_context_implementation,
+                                    context, _e_text_input_method_context_cb_resource_destroy);
 
    context->model = text_input;
    context->input_method = input_method;
