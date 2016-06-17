@@ -134,6 +134,8 @@ _input_panel_hide(struct wl_client *client, struct wl_resource *resource)
 
    if (_context_created)
      _e_text_input_deactivate(text_input, input_method);
+
+   e_input_panel_wait_update_set(EINA_FALSE);
 }
 
 static void
@@ -628,7 +630,7 @@ static void
 _e_text_input_method_context_cb_private_command(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t serial, const char *command)
 {
    E_Input_Method_Context *context = wl_resource_get_user_data(resource);
-
+   
    if (!context)
      {
         wl_resource_post_error(resource,
@@ -1046,11 +1048,21 @@ _e_text_input_cb_input_panel_show(struct wl_client *client, struct wl_resource *
      _e_text_input_method_create_context(client, input_method, text_input);
 
    if (input_method && input_method->resource && input_method->context && input_method->context->resource)
-     wl_input_method_send_show_input_panel(input_method->resource, input_method->context->resource);
+     {
+        /* DO NOT show input panel surface until we get message "show complete" from input method,
+         * in order to give a change to update UI */
+        WTI_LOG("IM::SHOW::WAIT_FOR_READY");
+
+        wl_input_method_send_show_input_panel(input_method->resource, input_method->context->resource);
+
+        /* we need to force update in order to release buffer
+         * if we do not, client can't update
+         * because they may in manual render state by frame callback mechanism,
+         * and also don't have released buffer */
+        e_input_panel_wait_update_set(EINA_TRUE);
+     }
 
    text_input->input_panel_visibile = EINA_TRUE;
-
-   e_input_panel_visibility_change(EINA_TRUE);
 
    if (text_input->resource)
      wl_text_input_send_input_panel_state(text_input->resource,
