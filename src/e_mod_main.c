@@ -152,11 +152,14 @@ _display_language_changed_cb(keynode_t *key, void* data)
 
    /* Just in case we did not find any matching language string */
    g_keymap_index = 0;
-   for (loop = 0; loop < sizeof(g_keymap_info) / sizeof(struct _E_Input_Method_Keymap_Info); loop++)
+   if (language)
      {
-        if (strncmp(language, g_keymap_info[loop].language, strlen(g_keymap_info[loop].language)) == 0)
+        for (loop = 0; loop < sizeof(g_keymap_info) / sizeof(struct _E_Input_Method_Keymap_Info); loop++)
           {
-             g_keymap_index = loop;
+             if (strncmp(language, g_keymap_info[loop].language, strlen(g_keymap_info[loop].language)) == 0)
+               {
+                  g_keymap_index = loop;
+               }
           }
      }
    /* We do not want to change the current keymap related behavior in TV profile for now */
