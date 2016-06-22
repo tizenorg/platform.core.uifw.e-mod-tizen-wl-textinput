@@ -520,7 +520,7 @@ _e_text_input_method_context_cb_get_surrounding_text(struct wl_client *client EI
 
 static void
 _e_text_input_method_context_cb_filter_key_event_done(struct wl_client *client EINA_UNUSED, struct wl_resource *resource,
-                                                 uint32_t serial, uint32_t state)
+                                                      uint32_t serial, uint32_t state)
 {
     E_Input_Method_Context *context = wl_resource_get_user_data(resource);
 
@@ -535,7 +535,24 @@ _e_text_input_method_context_cb_filter_key_event_done(struct wl_client *client E
     if ((context->model) && (context->model->resource))
       wl_text_input_send_filter_key_event_done(context->model->resource,
                                           serial, state);
+}
 
+static void
+_e_text_input_method_context_cb_reset_done(struct wl_client *client EINA_UNUSED, struct wl_resource *resource,
+                                           uint32_t serial)
+{
+    E_Input_Method_Context *context = wl_resource_get_user_data(resource);
+
+    if (!context)
+      {
+         wl_resource_post_error(resource,
+                                WL_DISPLAY_ERROR_INVALID_OBJECT,
+                                "No Input Method Context For Resource");
+         return;
+      }
+
+    if ((context->model) && (context->model->resource))
+      wl_text_input_send_reset_done(context->model->resource, serial);
 }
 
 static const struct wl_input_method_context_interface _e_text_input_method_context_implementation = {
@@ -559,7 +576,8 @@ static const struct wl_input_method_context_interface _e_text_input_method_conte
      _e_text_input_method_context_cb_hide_input_panel,
      _e_text_input_method_context_cb_get_selection_text,
      _e_text_input_method_context_cb_get_surrounding_text,
-     _e_text_input_method_context_cb_filter_key_event_done
+     _e_text_input_method_context_cb_filter_key_event_done,
+     _e_text_input_method_context_cb_reset_done
 };
 
 static void
@@ -1182,6 +1200,28 @@ _e_text_input_cb_filter_key_event(struct wl_client *client EINA_UNUSED, struct w
                                                    serial, time, keyname, state, modifiers);
 }
 
+static void
+_e_text_input_cb_reset_sync(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t serial)
+{
+   E_Text_Input *text_input = wl_resource_get_user_data(resource);
+   E_Input_Method *input_method = NULL;
+   Eina_List *l = NULL;
+
+   if (!text_input)
+     {
+        wl_resource_post_error(resource,
+                               WL_DISPLAY_ERROR_INVALID_OBJECT,
+                               "No Text Input For Resource");
+        return;
+     }
+
+   EINA_LIST_FOREACH(text_input->input_methods, l, input_method)
+     {
+        if (!input_method || !input_method->context) continue;
+        if (input_method->context->resource)
+          wl_input_method_context_send_reset_sync(input_method->context->resource, serial);
+     }
+}
 
 static const struct wl_text_input_interface _e_text_input_implementation = {
      _e_text_input_cb_activate,
@@ -1200,7 +1240,8 @@ static const struct wl_text_input_interface _e_text_input_implementation = {
      _e_text_input_cb_bidi_direction_set,
      _e_text_input_cb_cursor_position_set,
      _e_text_input_cb_process_input_device_event,
-     _e_text_input_cb_filter_key_event
+     _e_text_input_cb_filter_key_event,
+     _e_text_input_cb_reset_sync
 };
 
 static void
