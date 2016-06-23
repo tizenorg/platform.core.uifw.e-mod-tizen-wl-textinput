@@ -235,7 +235,6 @@ static void
 _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
 {
    E_Client *ec;
-   E_Comp_Wl_Client_Data *cdata;
 
    if (!ips) return;
 
