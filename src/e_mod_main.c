@@ -234,13 +234,12 @@ _e_text_input_method_context_key_send(E_Input_Method_Context *context, unsigned 
 static Eina_Bool
 _e_text_input_method_context_filter_hotkeys(E_Input_Method_Context *context, Ecore_Event_Key *ev)
 {
-   const char *keyname_space = "space";
-
    if (!ev) return EINA_FALSE;
    if (!context) return EINA_FALSE;
 
    /* We do not want to change the current keymap related behavior in TV profile for now */
 #ifndef _TV
+   const char *keyname_space = "space";
    if ((strncmp(ev->keyname, keyname_space, strlen(keyname_space)) == 0) && (ev->modifiers & ECORE_EVENT_MODIFIER_SHIFT))
      {
         int keymap_index;
