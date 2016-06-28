@@ -19,10 +19,6 @@
 #undef CRI
 #endif
 
-#ifndef WTI_LOG
-#define WTI_LOG(...) printf(__VA_ARGS__)
-#endif
-
 extern EINTERN int _wti_log_domain;
 #define DBG(...)     EINA_LOG_DOM_DBG(_wti_log_domain, __VA_ARGS__)
 #define INF(...)     EINA_LOG_DOM_INFO(_wti_log_domain, __VA_ARGS__)

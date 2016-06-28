@@ -11,10 +11,6 @@ struct _E_Input_Panel
    struct wl_global *global;
    struct wl_resource *resource;
    Eina_List *surfaces;
-
-   Ecore_Event_Handler *buf_change_handler;
-
-   Eina_Bool wait_update; /* wait update state for global input panel object */
 };
 
 struct _E_Input_Panel_Surface
@@ -24,15 +20,10 @@ struct _E_Input_Panel_Surface
    E_Input_Panel *input_panel;
    E_Client *ec;
 
-   struct
-   {
-      Ecore_Event_Handler *rot_change_end;
-      Ecore_Event_Handler *buf_change;
-   } eh;
+   Ecore_Event_Handler *rot_handler;
 
    Eina_Bool panel;
    Eina_Bool showing;
-   Eina_Bool wait_update; /* wait update state for individual input panel surface */
 };
 
 E_Input_Panel *g_input_panel = NULL;
@@ -81,24 +72,6 @@ _e_input_panel_surface_cb_overlay_panel_set(struct wl_client *client EINA_UNUSED
 static void
 _e_input_panel_surface_cb_ready_set(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, uint32_t state EINA_UNUSED)
 {
-   E_Input_Panel_Surface *ips = wl_resource_get_user_data(resource);
-
-   if (!g_input_panel) return;
-
-   if (!ips)
-     {
-        wl_resource_post_error(resource,
-            WL_DISPLAY_ERROR_INVALID_OBJECT,
-            "No Input Panel Surface For Surface");
-        return;
-     }
-
-   if (g_input_panel->wait_update)
-     {
-        WTI_LOG("IPS::SHOW::READY");
-        e_input_panel_visibility_change(EINA_TRUE);
-        e_input_panel_wait_update_set(EINA_FALSE);
-     }
 }
 
 static const struct wl_input_panel_surface_interface _e_input_panel_surface_implementation = {
@@ -147,8 +120,7 @@ _e_input_panel_surface_resource_destroy(struct wl_resource *resource)
      }
 
    input_panel->surfaces = eina_list_remove(input_panel->surfaces, ips);
-   E_FREE_FUNC(ips->eh.rot_change_end, ecore_event_handler_del);
-   E_FREE_FUNC(ips->eh.buf_change, ecore_event_handler_del);
+   E_FREE_FUNC(ips->rot_handler, ecore_event_handler_del);
    free(ips);
 }
 
@@ -188,50 +160,6 @@ _e_input_panel_position_set(E_Client *ec, int w, int h)
 }
 
 static void
-_ips_show(E_Client *ec)
-{
-   if (ec->visible)
-     return;
-
-   WTI_LOG("IPS::SHOW");
-
-   _e_input_panel_position_set(ec, ec->client.w, ec->client.h);
-
-   ec->visible = EINA_TRUE;
-   evas_object_geometry_set(ec->frame, ec->x, ec->y, ec->w, ec->h);
-   evas_object_show(ec->frame);
-   e_comp_object_damage(ec->frame, 0, 0, ec->w, ec->h);
-}
-
-static Eina_Bool
-_ips_cb_buffer_change(void *data, int type, void *event)
-{
-   E_Event_Client *ev = event;
-   E_Input_Panel_Surface *ips = data;
-
-   if (!ips || !ev)
-     goto end;
-
-   if (ips->ec != ev->ec)
-     goto end;
-
-   if (!ips->wait_update)
-     goto clean;
-
-   WTI_LOG("IPS::BUFFER::CHANGED::DEFER_SHOW");
-
-   _ips_show(ips->ec);
-
-   ips->wait_update = EINA_FALSE;
-
-clean:
-   E_FREE_FUNC(ips->eh.buf_change, ecore_event_handler_del);
-
-end:
-   return ECORE_CALLBACK_PASS_ON;
-}
-
-static void
 _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
 {
    E_Client *ec;
@@ -244,22 +172,15 @@ _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
 
    if ((ips->showing) && (e_pixmap_usable_get(ec->pixmap)))
      {
-        if (ec->visible)
-          return;
+        _e_input_panel_position_set(ec, ec->client.w, ec->client.h);
 
-        WTI_LOG("IPS::DEFER_SHOW::ADD");
-        ips->wait_update = EINA_TRUE;
-        if (!ips->eh.buf_change)
-          {
-             ips->eh.buf_change =
-                ecore_event_handler_add(E_EVENT_CLIENT_BUFFER_CHANGE,
-                                        _ips_cb_buffer_change, ips);
-          }
+        ec->visible = EINA_TRUE;
+        evas_object_geometry_set(ec->frame, ec->x, ec->y, ec->w, ec->h);
+        evas_object_show(ec->frame);
+        e_comp_object_damage(ec->frame, 0, 0, ec->w, ec->h);
      }
    else
      {
-        WTI_LOG("IPS::DEFER_SHOW::HIDE");
-        ips->wait_update = EINA_FALSE;
         ec->visible = EINA_FALSE;
         evas_object_hide(ec->frame);
      }
@@ -452,8 +373,6 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
    ec->border_size = 0;
    ec->vkbd.vkbd = 1;
    ec->icccm.window_role = eina_stringshare_add("input_panel_surface");
-   /* skip iconify */
-   ec->exp_iconify.skip_iconify = 1;
    evas_object_layer_set(ec->frame, E_LAYER_CLIENT_ABOVE);
    evas_object_raise(ec->frame);
 
@@ -479,7 +398,7 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
                                   &_e_input_panel_surface_implementation,
                                   ips, _e_input_panel_surface_resource_destroy);
 
-   ips->eh.rot_change_end =
+   ips->rot_handler =
       ecore_event_handler_add(E_EVENT_CLIENT_ROTATION_CHANGE_END,
                               _e_input_panel_client_cb_rotation_change_end, ips);
 }
@@ -625,72 +544,4 @@ e_input_panel_shutdown(void)
               g_input_panel->global = NULL;
            }
       }
-}
-
-static void
-_ips_client_frame_flush(E_Input_Panel_Surface  *ips)
-{
-   if (!ips->ec)
-     return;
-
-   if (e_object_is_del(E_OBJECT(ips->ec)))
-     return;
-
-   WTI_LOG("IPS::FRAME::FLUSH ec %p", ips->ec);
-   e_pixmap_image_clear(ips->ec->pixmap, EINA_TRUE);
-}
-
-static Eina_Bool
-_ip_cb_e_buf_change(void *data EINA_UNUSED, int ev_type EINA_UNUSED, void *event)
-{
-   E_Event_Client *ev;
-   E_Input_Panel_Surface *ips;
-   Eina_List *l;
-
-   ev = event;
-   if (EINA_UNLIKELY(!ev))
-     goto end;
-
-   if (EINA_UNLIKELY(!g_input_panel))
-     goto end;
-
-   EINA_LIST_FOREACH(g_input_panel->surfaces, l, ips)
-     {
-        if (ips->ec != ev->ec) continue;
-        _ips_client_frame_flush(ips);
-     }
-
-end:
-   return ECORE_CALLBACK_PASS_ON;
-}
-
-EINTERN void
-e_input_panel_wait_update_set(Eina_Bool wait_update)
-{
-   E_Input_Panel_Surface *ips;
-   Eina_List *l;
-
-   if (!g_input_panel)
-     return;
-
-   g_input_panel->wait_update = wait_update;
-
-   /* If we are in wait_update mode, the input panel surfaces have to be updated forcibly */
-   if (wait_update)
-     {
-        EINA_LIST_FOREACH(g_input_panel->surfaces, l, ips)
-          {
-             if (!ips->ec) continue;
-             _ips_client_frame_flush(ips);
-          }
-
-        if (!g_input_panel->buf_change_handler)
-          {
-             WTI_LOG("IPS::WAIT::UPDATE::SET (add buf change handler)");
-             g_input_panel->buf_change_handler = ecore_event_handler_add(E_EVENT_CLIENT_BUFFER_CHANGE,
-                                                                         _ip_cb_e_buf_change, NULL);
-          }
-     }
-   else
-     E_FREE_FUNC(g_input_panel->buf_change_handler, ecore_event_handler_del);
 }
