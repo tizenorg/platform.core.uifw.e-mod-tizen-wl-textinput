@@ -75,6 +75,14 @@ struct _E_Input_Method_Keymap_Info
    const char *layout;
 };
 
+enum _E_Input_Panel_State
+{
+    E_INPUT_PANEL_STATE_DID_HIDE,
+    E_INPUT_PANEL_STATE_WILL_HIDE,
+    E_INPUT_PANEL_STATE_DID_SHOW,
+    E_INPUT_PANEL_STATE_WILL_SHOW,
+};
+
 static E_Input_Method *g_input_method = NULL;
 static E_Text_Input *g_text_input = NULL;
 static struct wl_client *g_client = NULL;
@@ -86,6 +94,10 @@ static Eina_List *handlers = NULL;
 static uint32_t g_text_input_count = 1;
 static uint32_t g_keymap_index = 0;
 static Eina_Bool g_keyboard_mode_engligh = EINA_TRUE;
+static Ecore_Timer *g_timer_will_hide  = NULL;
+static enum _E_Input_Panel_State g_input_panel_state = E_INPUT_PANEL_STATE_DID_HIDE;
+
+const int WILL_HIDE_TIMER_INTERVAL = 1.0f;
 
 static struct _E_Input_Method_Keymap_Info g_keymap_info[] = {
    {"en_US", "evdev", "pc105", "us"},
@@ -95,8 +107,26 @@ static struct _E_Input_Method_Keymap_Info g_keymap_info[] = {
 static void _e_text_input_deactivate(E_Text_Input *text_input, E_Input_Method *input_method);
 static Eina_Bool _e_text_input_method_create_context(struct wl_client *client, E_Input_Method *input_method, E_Text_Input *text_input);
 
+static Eina_Bool
+_will_hide_timer_handler(void *data)
+{
+   INF("TIMED OUT while waiting for WILL_HIDE_ACK");
+   if (g_input_panel_state == E_INPUT_PANEL_STATE_WILL_HIDE)
+     {
+        e_input_panel_visibility_change(EINA_FALSE);
+     }
+
+   if (g_timer_will_hide)
+     {
+        ecore_timer_del(g_timer_will_hide);
+        g_timer_will_hide = NULL;
+     }
+
+   return ECORE_CALLBACK_CANCEL;
+}
+
 static void
-_input_panel_hide(struct wl_client *client, struct wl_resource *resource)
+_input_panel_hide(struct wl_client *client, struct wl_resource *resource, Eina_Bool force_hide)
 {
    E_Text_Input *text_input = wl_resource_get_user_data(resource);
    E_Input_Method *input_method = NULL;
@@ -116,7 +146,23 @@ _input_panel_hide(struct wl_client *client, struct wl_resource *resource)
      wl_text_input_send_input_panel_state(text_input->resource,
                                           WL_TEXT_INPUT_INPUT_PANEL_STATE_HIDE);
 
-   e_input_panel_visibility_change(EINA_FALSE);
+   if (force_hide)
+     {
+        e_input_panel_visibility_change(EINA_FALSE);
+        g_input_panel_state = E_INPUT_PANEL_STATE_DID_HIDE;
+     }
+   else
+     {
+        g_input_panel_state = E_INPUT_PANEL_STATE_WILL_HIDE;
+        /* Temporarily sending private command, will need for a new wayland protocol */
+        wl_text_input_send_private_command(text_input->resource, 0, "CONFORMANT_RESET");
+        if (g_timer_will_hide)
+          {
+             ecore_timer_del(g_timer_will_hide);
+             g_timer_will_hide = NULL;
+          }
+        g_timer_will_hide = ecore_timer_add(WILL_HIDE_TIMER_INTERVAL, _will_hide_timer_handler, NULL);
+     }
 
    if (g_input_method && g_input_method->resource)
      input_method = wl_resource_get_user_data(g_input_method->resource);
@@ -684,7 +730,8 @@ _e_text_input_method_context_cb_hide_input_panel(struct wl_client *client EINA_U
      wl_text_input_send_input_panel_state(text_input->resource,
                                           WL_TEXT_INPUT_INPUT_PANEL_STATE_HIDE);
 
-   e_input_panel_visibility_change(EINA_FALSE);
+   if (g_text_input && g_text_input->resource && g_client)
+     _input_panel_hide(g_client, g_text_input->resource, EINA_FALSE);
 
    if (g_input_method && g_input_method->resource)
      input_method = wl_resource_get_user_data(g_input_method->resource);
@@ -822,7 +869,7 @@ _e_mod_ecore_key_down_cb(void *data, int type, void *event)
      return ECORE_CALLBACK_PASS_ON;
 
    if (g_text_input && g_text_input->resource && g_client)
-     _input_panel_hide(g_client, g_text_input->resource);
+     _input_panel_hide(g_client, g_text_input->resource, EINA_FALSE);
 
    g_disable_show_panel = EINA_TRUE;
 
@@ -1065,6 +1112,7 @@ _e_text_input_cb_input_panel_show(struct wl_client *client, struct wl_resource *
      }
 
    text_input->input_panel_visibile = EINA_TRUE;
+   g_input_panel_state = E_INPUT_PANEL_STATE_WILL_SHOW;
 
    if (text_input->resource)
      wl_text_input_send_input_panel_state(text_input->resource,
@@ -1074,7 +1122,7 @@ _e_text_input_cb_input_panel_show(struct wl_client *client, struct wl_resource *
 static void
 _e_text_input_cb_input_panel_hide(struct wl_client *client, struct wl_resource *resource)
 {
-   _input_panel_hide(client, resource);
+   _input_panel_hide(client, resource, EINA_FALSE);
 }
 
 static void
@@ -1288,6 +1336,22 @@ _e_text_input_cb_input_panel_data_set(struct wl_client *client EINA_UNUSED, stru
           wl_input_method_context_send_input_panel_data(input_method->context->resource,
                                                         data, length);
      }
+
+   /* Temporarily receiving WILL_HIDE_ACK via input_panel_data, will need for a new wayland protocol */
+   const char *szWillHideAck = "WILL_HIDE_ACK";
+   if (strncmp(data, szWillHideAck, strlen(szWillHideAck)) == 0)
+     {
+        if (g_timer_will_hide)
+          {
+             ecore_timer_del(g_timer_will_hide);
+             g_timer_will_hide = NULL;
+          }
+        INF("WILL_HIDE_ACK_RECVED, %d", g_input_panel_state);
+        if (g_input_panel_state == E_INPUT_PANEL_STATE_WILL_HIDE)
+          {
+             e_input_panel_visibility_change(EINA_FALSE);
+          }
+     }
 }
 
 static void
@@ -1402,7 +1466,7 @@ _e_text_input_cb_destroy(struct wl_resource *resource)
         if (g_text_input == text_input && text_input->input_panel_visibile)
           {
              if (g_client)
-               _input_panel_hide(g_client, resource);
+               _input_panel_hide(g_client, resource, EINA_TRUE);
           }
 
         _e_text_input_deactivate(text_input, input_method);
@@ -1676,6 +1740,12 @@ E_API int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
    E_FREE_LIST(handlers, ecore_event_handler_del);
+
+   if (g_timer_will_hide)
+     {
+        ecore_timer_del(g_timer_will_hide);
+        g_timer_will_hide = NULL;
+     }
 
    vconf_ignore_key_changed(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, _keyboard_mode_changed_cb);
    vconf_ignore_key_changed(VCONFKEY_LANGSET, _display_language_changed_cb);
