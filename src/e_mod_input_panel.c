@@ -308,6 +308,21 @@ end:
 }
 
 static void
+_e_ips_cb_evas_resize(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   E_Client *ec;
+   int w, h;
+
+   ec = data;
+   if (e_object_is_del(E_OBJECT(ec)))
+     return;
+
+   evas_object_geometry_get(obj, NULL, NULL, &w, &h);
+
+   _e_input_panel_position_set(ec, w, h);
+}
+
+static void
 _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *resource, uint32_t id, struct wl_resource *surface_resource)
 {
    E_Input_Panel *input_panel = wl_resource_get_user_data(resource);
@@ -375,6 +390,8 @@ _e_input_panel_cb_surface_get(struct wl_client *client, struct wl_resource *reso
    ec->icccm.window_role = eina_stringshare_add("input_panel_surface");
    evas_object_layer_set(ec->frame, E_LAYER_CLIENT_ABOVE);
    evas_object_raise(ec->frame);
+
+   evas_object_event_callback_add(ec->frame, EVAS_CALLBACK_RESIZE, _e_ips_cb_evas_resize, ec);
 
    cdata->surface = surface_resource;
    cdata->shell.configure_send = NULL;
