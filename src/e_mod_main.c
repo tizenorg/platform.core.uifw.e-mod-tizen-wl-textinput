@@ -1111,6 +1111,10 @@ _e_text_input_cb_input_panel_show(struct wl_client *client, struct wl_resource *
         e_input_panel_wait_update_set(EINA_TRUE);
      }
 
+#ifdef _TV
+   e_input_panel_visibility_change(EINA_TRUE);
+#endif
+
    text_input->input_panel_visibile = EINA_TRUE;
    g_input_panel_state = E_INPUT_PANEL_STATE_WILL_SHOW;
 
