@@ -187,6 +187,7 @@ _e_input_panel_position_set(E_Client *ec, int w, int h)
    e_client_util_move_without_frame(ec, nx, ny);
 }
 
+#ifndef _TV
 static void
 _ips_show(E_Client *ec)
 {
@@ -230,6 +231,7 @@ clean:
 end:
    return ECORE_CALLBACK_PASS_ON;
 }
+#endif
 
 static void
 _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
@@ -244,6 +246,13 @@ _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
 
    if ((ips->showing) && (e_pixmap_usable_get(ec->pixmap)))
      {
+#ifdef _TV
+        _e_input_panel_position_set(ec, ec->client.w, ec->client.h);
+        ec->visible = EINA_TRUE;
+        evas_object_geometry_set(ec->frame, ec->x, ec->y, ec->w, ec->h);
+        evas_object_show(ec->frame);
+        e_comp_object_damage(ec->frame, 0, 0, ec->w, ec->h);
+#else
         if (ec->visible)
           return;
 
@@ -255,6 +264,7 @@ _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
                 ecore_event_handler_add(E_EVENT_CLIENT_BUFFER_CHANGE,
                                         _ips_cb_buffer_change, ips);
           }
+#endif
      }
    else
      {
@@ -644,6 +654,7 @@ e_input_panel_shutdown(void)
       }
 }
 
+#ifndef _TV
 static void
 _ips_client_frame_flush(E_Input_Panel_Surface  *ips)
 {
@@ -680,10 +691,12 @@ _ip_cb_e_buf_change(void *data EINA_UNUSED, int ev_type EINA_UNUSED, void *event
 end:
    return ECORE_CALLBACK_PASS_ON;
 }
+#endif
 
 EINTERN void
 e_input_panel_wait_update_set(Eina_Bool wait_update)
 {
+#ifndef _TV
    E_Input_Panel_Surface *ips;
    Eina_List *l;
 
@@ -710,4 +723,5 @@ e_input_panel_wait_update_set(Eina_Bool wait_update)
      }
    else
      E_FREE_FUNC(g_input_panel->buf_change_handler, ecore_event_handler_del);
+#endif
 }
