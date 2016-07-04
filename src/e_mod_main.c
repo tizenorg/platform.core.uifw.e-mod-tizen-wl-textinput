@@ -84,8 +84,21 @@ static uint32_t g_keymap_index = 0;
 static Eina_Bool g_keyboard_mode_engligh = EINA_TRUE;
 static Ecore_Timer *g_timer_will_hide  = NULL;
 static enum _E_Input_Panel_State g_input_panel_state = E_INPUT_PANEL_STATE_DID_HIDE;
-
+static Eina_List *hooks_ec = NULL; 
+static E_Client *transient_for_ec = NULL;
+ 
 const int WILL_HIDE_TIMER_INTERVAL = 1.0f;
+
+#undef E_CLIENT_HOOK_APPEND
+#define E_CLIENT_HOOK_APPEND(l, t, cb, d) \
+  do                                      \
+    {                                     \
+       E_Client_Hook *_h;                 \
+       _h = e_client_hook_add(t, cb, d);  \
+       assert(_h);                        \
+       l = eina_list_append(l, _h);       \
+    }                                     \
+  while (0)
 
 static struct _E_Input_Method_Keymap_Info g_keymap_info[] = {
    {"en_US", "evdev", "pc105", "us"},
@@ -98,7 +111,7 @@ static Eina_Bool _e_text_input_method_create_context(struct wl_client *client, E
 static Eina_Bool
 _will_hide_timer_handler(void *data)
 {
-   INF("TIMED OUT while waiting for WILL_HIDE_ACK");
+   INF("TIMED OUT while waiting for WILL_HIDE_ACK : %d", g_input_panel_state);
    if (g_input_panel_state == E_INPUT_PANEL_STATE_WILL_HIDE)
      {
         e_input_panel_visibility_change(EINA_FALSE);
@@ -749,6 +762,13 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
    EINA_SAFETY_ON_NULL_GOTO(g_input_method, err);
    EINA_SAFETY_ON_NULL_GOTO(g_input_method->resource, err);
 
+   /* Store application window's E_Client* value for setting transient_for information later */
+   E_Client *ec = wl_resource_get_user_data(surface);
+   EINA_SAFETY_ON_NULL_GOTO(ec, err);
+   EINA_SAFETY_ON_TRUE_GOTO(e_object_is_del(E_OBJECT(ec)), err);
+   transient_for_ec = ec;
+   WTI_LOG("TRANSIENT_FOR::Application window's E_Client* value : %p\n", transient_for_ec);
+
    text_input = wl_resource_get_user_data(resource);
    g_text_input = text_input;
    g_client = client;
@@ -946,12 +966,15 @@ _e_text_input_cb_input_panel_show(struct wl_client *client, struct wl_resource *
    if (text_input->resource)
      wl_text_input_send_input_panel_state(text_input->resource,
                                           WL_TEXT_INPUT_INPUT_PANEL_STATE_SHOW);
+
+   e_input_panel_transient_for_set(transient_for_ec);
 }
 
 static void
 _e_text_input_cb_input_panel_hide(struct wl_client *client, struct wl_resource *resource)
 {
    _input_panel_hide(client, resource, EINA_FALSE);
+   e_input_panel_transient_for_set(NULL);
 }
 
 static void
@@ -1577,6 +1600,19 @@ _e_text_input_method_context_cb_client_resize(void *data EINA_UNUSED, int type E
    return ECORE_CALLBACK_PASS_ON;
 }
 
+static void
+_pol_cb_hook_client_del(void *d EINA_UNUSED, E_Client *ec)
+{
+   if (EINA_UNLIKELY(!ec))
+     return;
+
+   if (ec == transient_for_ec)
+     {
+        transient_for_ec = NULL;
+        WTI_LOG("TRANSIENT_FOR::Reset transient_for_ec to NULL\n");
+     }
+}
+
 E_API void *
 e_modapi_init(E_Module *m)
 {
@@ -1610,6 +1646,8 @@ e_modapi_init(E_Module *m)
    if (!eeze_udev_watch_hander)
      goto err;
 
+   E_CLIENT_HOOK_APPEND(hooks_ec, E_CLIENT_HOOK_DEL, _pol_cb_hook_client_del, NULL);
+
    return m;
 err:
    _e_mod_text_input_shutdown();
@@ -1620,6 +1658,7 @@ E_API int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
    E_FREE_LIST(handlers, ecore_event_handler_del);
+   E_FREE_LIST(hooks_ec, e_client_hook_del);
 
    if (g_timer_will_hide)
      {

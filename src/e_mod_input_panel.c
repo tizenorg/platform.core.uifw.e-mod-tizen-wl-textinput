@@ -716,7 +716,7 @@ e_input_panel_wait_update_set(Eina_Bool wait_update)
 
         if (!g_input_panel->buf_change_handler)
           {
-             WTI_LOG("IPS::WAIT::UPDATE::SET (add buf change handler)");
+             WTI_LOG("IPS::WAIT::UPDATE::SET (add buf change handler)\n");
              g_input_panel->buf_change_handler = ecore_event_handler_add(E_EVENT_CLIENT_BUFFER_CHANGE,
                                                                          _ip_cb_e_buf_change, NULL);
           }
@@ -724,4 +724,57 @@ e_input_panel_wait_update_set(Eina_Bool wait_update)
    else
      E_FREE_FUNC(g_input_panel->buf_change_handler, ecore_event_handler_del);
 #endif
+}
+
+EINTERN void
+e_input_panel_transient_for_set(E_Client *parent)
+{
+   WTI_LOG("TRANSIENT_FOR::transient_for_set : %p\n", parent);
+   E_Input_Panel_Surface *ips;
+   Eina_List *l;
+
+   EINA_LIST_FOREACH(g_input_panel->surfaces, l, ips)
+     {
+        if (!ips) continue;
+        E_Client *child = ips->ec;
+
+        if (!child) continue;
+
+        /* If the child already has a parent, remove it */
+        if (child->parent)
+          {
+             WTI_LOG("TRANSIENT_FOR::The child already has a parent : %p\n", child->parent);
+             if (parent != child->parent)
+               {
+                  child->parent->transients =
+                     eina_list_remove(child->parent->transients, child);
+                  if (child->parent->modal == child) child->parent->modal = NULL;
+                  child->parent = NULL;
+                  WTI_LOG("TRANSIENT_FOR::reset parent %p for : %p\n", child->parent, child);
+               }
+          }
+
+        /* Append our child into parent's transients list */
+        if ((parent != child) && (parent != child->parent))
+          {
+             if ((parent) && (eina_list_data_find(parent->transients, child) != child))
+               {
+                  WTI_LOG("TRANSIENT_FOR::Adding %p into parent %p's transients list\n", child, parent);
+                  parent->transients = eina_list_append(parent->transients, child);
+               }
+             child->parent = parent;
+          }
+
+        if (parent)
+          {
+             child->icccm.fetch.transient_for = EINA_TRUE;
+             child->icccm.transient_for = e_client_util_win_get(parent);
+          }
+        else
+          {
+              child->icccm.fetch.transient_for = EINA_FALSE;
+              child->icccm.transient_for = 0;
+          }
+        EC_CHANGED(child);
+     }
 }
