@@ -143,7 +143,9 @@ _input_panel_hide(struct wl_client *client, struct wl_resource *resource, Eina_B
      {
         g_input_panel_state = E_INPUT_PANEL_STATE_WILL_HIDE;
         /* Temporarily sending private command, will need for a new wayland protocol */
-        wl_text_input_send_private_command(text_input->resource, 0, "CONFORMANT_RESET");
+        if (text_input->resource)
+          wl_text_input_send_private_command(text_input->resource, 0, "CONFORMANT_RESET");
+
         if (g_timer_will_hide)
           {
              ecore_timer_del(g_timer_will_hide);
