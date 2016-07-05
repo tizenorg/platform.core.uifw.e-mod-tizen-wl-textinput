@@ -186,7 +186,7 @@ static void
 _display_language_changed_cb(keynode_t *key, void* data)
 {
    int loop;
-   const char *language = vconf_get_str(VCONFKEY_LANGSET);
+   char *language = vconf_get_str(VCONFKEY_LANGSET);
 
    /* Just in case we did not find any matching language string */
    g_keymap_index = 0;
@@ -199,6 +199,7 @@ _display_language_changed_cb(keynode_t *key, void* data)
                   g_keymap_index = loop;
                }
           }
+        free(language);
      }
    /* We do not want to change the current keymap related behavior in TV profile for now */
 #ifndef _TV
