@@ -191,8 +191,16 @@ static void
 _keyboard_mode_changed_cb(keynode_t *key, void* data)
 {
    int val = 0;
-   if (vconf_get_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, &val) == 0 && val == 0)
-     g_disable_show_panel = EINA_FALSE;
+   if (vconf_get_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, &val) == 0)
+     {
+        if (val == 0)
+          g_disable_show_panel = EINA_FALSE;
+        else
+          {
+             if (g_text_input && g_text_input->resource && g_client)
+               _input_panel_hide(g_client, g_text_input->resource, EINA_FALSE);
+          }
+     }
 }
 
 static void
