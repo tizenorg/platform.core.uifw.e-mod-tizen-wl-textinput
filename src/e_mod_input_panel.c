@@ -271,6 +271,10 @@ _e_input_panel_surface_visible_update(E_Input_Panel_Surface *ips)
         WTI_LOG("IPS::DEFER_SHOW::HIDE");
         ips->wait_update = EINA_FALSE;
         ec->visible = EINA_FALSE;
+        /* We have to reset the flag of pending_show to prevent showing after
+         * finish the rotation. Directly set this value, since there is no way
+         * to tell it needs to be hidden to rotation module for now. */
+        ec->e.state.rot.pending_show = 0;
         evas_object_hide(ec->frame);
      }
 }
