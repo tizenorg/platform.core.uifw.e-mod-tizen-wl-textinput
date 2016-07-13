@@ -1374,10 +1374,15 @@ _e_text_input_cb_destroy(struct wl_resource *resource)
 
    EINA_LIST_FREE(text_input->input_methods, input_method)
      {
-        if (g_text_input == text_input && text_input->input_panel_visibile)
+        if (g_text_input == text_input)
           {
-             if (g_client)
-               _input_panel_hide(g_client, resource, EINA_TRUE);
+              if (text_input->input_panel_visibile)
+                {
+                   if (g_client)
+                     _input_panel_hide(g_client, resource, EINA_TRUE);
+                }
+
+             g_text_input = NULL;
           }
 
         _e_text_input_deactivate(text_input, input_method);
