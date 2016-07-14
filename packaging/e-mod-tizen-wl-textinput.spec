@@ -26,8 +26,8 @@ The Enlightenment WM Wayland Text Input Module for Tizen
 CFLAGS+=" -Werror";
 CXXFLAGS+=" -Werror";
 %if "%{profile}" == "tv"
-CFLAGS+=" -D_TV";
-CXXFLAGS+=" -D_TV";
+CFLAGS+=" -D_TV -DENABLE_GRAB_KEYBOARD=1";
+CXXFLAGS+=" -D_TV -DENABLE_GRAB_KEYBOARD=1";
 %endif
 
 %autogen
