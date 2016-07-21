@@ -827,12 +827,7 @@ _e_text_input_cb_activate(struct wl_client *client, struct wl_resource *resource
      }
 
 #ifdef _TV
-   g_disable_show_panel = EINA_FALSE;
-
-   /* switch to S/W keyboard mode */
-   int val = 0;
-   if (vconf_get_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, &val) == 0 && val != 0)
-     vconf_set_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, 0);
+   set_soft_keyboard_mode();
 #endif
 
    if (text_input->resource)
@@ -1584,10 +1579,21 @@ _e_mod_text_input_shutdown(void)
 E_API E_Module_Api e_modapi = { E_MODULE_API_VERSION, "Wl_Text_Input" };
 
 static void
+set_soft_keyboard_mode()
+{
+   g_disable_show_panel = EINA_FALSE;
+
+   /* switch to S/W keyboard mode */
+   int val = 0;
+   if (vconf_get_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, &val) == 0 && val != 0)
+     vconf_set_bool(VCONFKEY_ISF_HW_KEYBOARD_INPUT_DETECTED, 0);
+}
+
+static void
 _e_mod_eeze_udev_watch_cb(const char *text, Eeze_Udev_Event event, void *data, Eeze_Udev_Watch *watch)
 {
    if (event == EEZE_UDEV_EVENT_REMOVE)
-     g_disable_show_panel = EINA_FALSE;
+     set_soft_keyboard_mode();
 }
 
 static Eina_Bool
