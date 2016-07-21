@@ -8,6 +8,7 @@
 #include "Eeze.h"
 
 static Eina_Bool _e_text_input_method_context_cb_client_resize(void *data EINA_UNUSED, int type, void *event);
+static void set_soft_keyboard_mode();
 
 typedef struct _E_Text_Input E_Text_Input;
 typedef struct _E_Text_Input_Mgr E_Text_Input_Mgr;
